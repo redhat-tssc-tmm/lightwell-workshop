@@ -3,7 +3,7 @@ kind: Application
 {{ include "app-of-apps.metadata" (dict "name" "rhads" "namespace" .Values.argocd.namespace "syncWave" "-1") }}
 spec:
   destination:
-    namespace: {{ .Values.tpa.namespace }}
+    namespace: {{ .Values.rhtas.namespace }}
     server: https://kubernetes.default.svc
   project: default
   source:
@@ -18,13 +18,10 @@ spec:
         admin:
           password: {{ .Values.admin.password | quote }}
         tpa:
-          namespace: {{ .Values.tpa.namespace }}
-          channel: {{ .Values.tpa.channel }}
-          keycloakRealm: {{ .Values.tpa.keycloakRealm }}
-          uiClientId: {{ .Values.tpa.uiClientId }}
-          storageSize: {{ .Values.tpa.storageSize }}
-          dbStorageSize: {{ .Values.tpa.dbStorageSize }}
-          postgresImage: {{ .Values.tpa.postgresImage }}
+          keycloak:
+            realm: {{ .Values.tpa.keycloak.realm }}
+            frontendClientId: {{ .Values.tpa.keycloak.frontendClientId }}
+            cliClientId: {{ .Values.tpa.keycloak.cliClientId }}
         rhtas:
           namespace: {{ .Values.rhtas.namespace }}
           channel: {{ .Values.rhtas.channel }}

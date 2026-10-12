@@ -1,0 +1,90 @@
+{{- if and .Values.tpa.enabled .Values.tpa.rhda.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rhda-backend-redis
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend-redis
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.rhda.redis.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rhda-backend-redis
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend-redis
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+  selector:
+    app: rhda-backend-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rhda-backend-redis
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend-redis
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rhda-backend-redis
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: rhda-backend-redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.tpa.images.redis }}
+          ports:
+            - containerPort: 6379
+              protocol: TCP
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 50m
+          volumeMounts:
+            - name: redis-data
+              mountPath: /var/lib/redis/data
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: rhda-backend-redis
+{{- end }}

@@ -201,6 +201,16 @@ Copy and fill for each new decision:
 | **Decision** | Install OpenShift Pipelines (channel `pipelines-1.24`) via the `rhads` ArgoCD child app. Configure Tekton Chains for keyless signing using the cluster Kubernetes OIDC issuer for Fulcio certificate issuance and Rekor for transparency logging. Keycloak provides OIDC for human/email workflows via a dedicated `trusted-artifact-signer` client. TAS namespace changed from `lightwell-tas` → `trusted-artifact-signer`. A PostSync Job (`tektonconfig-patch-job`) patches TektonConfig and updates the Chains InstallerSet audience to `trusted-artifact-signer`. Keycloak OIDC client is configured by a Sync Job (`rhtas-keycloak-setup`). |
 | **Consequences** | No long-lived signing credentials in the cluster. If the Chains audience patch fails (InstallerSet race), signing is misconfigured silently — the PostSync Job now validates the patch applied and warns if not. The `rhtas-setup` SA is scoped to a namespaced Role reading only `keycloak-initial-admin` (not a ClusterRole). ClusterInterceptor binding is scoped to `system:serviceaccounts:openshift-pipelines` — EventListeners in tenant namespaces that need ClusterInterceptors require an additional binding. |
 
+## ADR-018 — Per-tenant TPA via Helm chart
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-12 |
+| **Title** | Deploy TPA per tenant via upstream Helm chart, not a shared operator instance |
+| **Context** | TPA does not support multi-tenancy — all users see each other's SBOMs, advisories, and vulnerability data. The original cluster-level deployment via the `rhtpa-operator` gave every tenant a shared view, which is unsuitable for a workshop where each student should see only their own analysis results. The dev-days project proved a per-tenant TPA pattern using the upstream Helm chart deployed as a nested ArgoCD Application per user. |
+| **Decision** | Remove the `rhtpa-operator` subscription and shared `TrustedProfileAnalyzer` CR from the `rhads` cluster chart. Deploy TPA per tenant using the upstream `redhat-trusted-profile-analyzer` Helm chart (from `charts.openshift.io`) as a nested ArgoCD Application rendered by the tenant chart. Each tenant gets: namespace `tpa-{guid}` with its own PostgreSQL, S3 bucket (ObjectBucketClaim via NooBaa), TPA server, importer, and a short-URL Route (`tpa-{guid}.{domain}`). RHDA backend is optional (`tpa.rhda.enabled`). Keycloak OIDC clients (`tpa-frontend` public, `tpa-cli` confidential) are created once at cluster level in the `sso` realm by `job-tpa-keycloak-setup.yaml`. All tenants share these clients; data isolation comes from each tenant having its own TPA server and database. Default client scopes grant `create:document`, `read:document`, `update:document` to all users; `delete:document` is optional and requires the `tpa-admin` realm role. The `tpa-cli` client secret is stored in the `keycloak` namespace and copied into each tenant's namespace by a per-tenant OIDC setup Job. |
+| **Consequences** | Each tenant consumes ~3 CPU, 12Gi memory (TPA server + PostgreSQL + importer), plus ~1 CPU, 2Gi if RHDA is enabled. Clusters must be sized for N × these resources. The `rhtpa-operator` is no longer installed — TPA is deployed purely via Helm. The old `trusted-profile-analyzer` Keycloak realm and its dot-separated scopes (`create.sbom`, etc.) are replaced by the shared `sso` realm with colon-separated scopes (`create:document`, etc.). Existing AgnosticV catalog items that create users in the old realm need updating. The per-tenant TPA templates live in `bootstrap-tenant/templates/tpa/` (not a Helm subchart) because Helm subchart value scoping prevents the parent's `guid` from reaching the subchart without changes to AgnosticV. A demo dataset is uploaded per tenant via a Job at sync-wave 3 using `tpa-cli` client credentials. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -226,3 +236,4 @@ Copy and fill for each new decision:
 | Fake Lightwell / AgnosticV credentials | ADR-016 (contents); install still planned |
 | Spec outlines still say Artifactory… | _(content debt, not an ADR)_ |
 | TAS + Tekton Chains keyless signing | ADR-017 |
+| Per-tenant TPA via Helm chart | ADR-018 |

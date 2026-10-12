@@ -8,11 +8,10 @@ metadata:
 data:
   GUID: {{ .Values.guid | quote }}
   KEYCLOAK_URL: {{ include "bootstrap-tenant.keycloakUrl" . | quote }}
-  KEYCLOAK_TPA_REALM: {{ .Values.keycloak.tpaRealm | quote }}
+  KEYCLOAK_TPA_REALM: {{ .Values.keycloak.realm | quote }}
   TPA_URL: {{ include "bootstrap-tenant.tpaUrl" . | quote }}
   TPA_TRUSTIFY_URL: {{ include "bootstrap-tenant.tpaUrl" . | quote }}
-  TPA_OAUTH_CLIENT_ID: {{ .Values.tpa.uiClientId | quote }}
-  TPA_UPLOADER_USERNAME: {{ .Values.tpa.uploaderUsername | default (printf "lightwell-uploader-%s" .Values.guid) | quote }}
+  TPA_OAUTH_CLIENT_ID: {{ .Values.tpa.oidc.frontendClientId | quote }}
   TPA_SBOM_LABEL: {{ include "bootstrap-tenant.tpaSbomLabel" . | quote }}
   GITLAB_URL: {{ include "bootstrap-tenant.gitlabHost" . | quote }}
   REMEDIATION_APP_GITLAB_PATH: {{ include "bootstrap-tenant.demoProjectPath" . | quote }}

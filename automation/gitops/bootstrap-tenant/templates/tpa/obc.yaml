@@ -1,0 +1,12 @@
+{{- if .Values.tpa.enabled }}
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: {{ .Values.tpa.objectBucketClaim.name }}
+  namespace: {{ include "tpa.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  bucketName: tpa-{{ .Values.guid }}-bucket
+  storageClassName: {{ .Values.tpa.objectBucketClaim.storageClassName }}
+{{- end }}

@@ -1,0 +1,21 @@
+{{- if .Values.tpa.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: tpa-short-url
+  namespace: {{ include "tpa.namespace" . }}
+  labels:
+    app: tpa
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  host: tpa-{{ .Values.guid }}.{{ .Values.deployer.domain }}
+  to:
+    kind: Service
+    name: server
+  port:
+    targetPort: endpoint
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+{{- end }}

@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-12 (Pipelines + Chains keyless signing added to rhads chart)
+Last updated: 2026-10-12 (per-tenant TPA via Helm chart)
 
 ## Where the pieces live
 
@@ -102,6 +102,19 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   a sync hook Job that patches the realm `displayName`.
 - **BuildConfig `triggers: []` drift** fixed — OpenShift strips empty trigger
   arrays, causing perpetual OutOfSync.
+- **Per-tenant TPA** via upstream Helm chart. Removed the shared `rhtpa-operator`
+  and `TrustedProfileAnalyzer` CR from `cluster/rhads`. Each tenant gets a
+  `tpa-{guid}` namespace with PostgreSQL, S3 (ObjectBucketClaim), TPA server,
+  importer, and a short-URL Route. RHDA backend is optional (`tpa.rhda.enabled`).
+  Keycloak OIDC clients (`tpa-frontend`, `tpa-cli`) created once at cluster level
+  in the `sso` realm; client secret copied per tenant. Default scopes:
+  `create/read/update:document`; `delete:document` requires `tpa-admin` role.
+  Templates live in `bootstrap-tenant/templates/tpa/` (not a subchart — Helm
+  subchart value scoping prevents `guid` from reaching the subchart without
+  AgnosticV changes). Old seed templates (`seed-tpa-keycloak.py`, demo-sbom
+  ConfigMap) removed. Dataset uploaded per tenant via a Job using `tpa-cli`
+  client credentials.
+  → [ADR-018](ADR.md#adr-018--per-tenant-tpa-via-helm-chart)
 - **OpenShift Pipelines + Tekton Chains keyless signing** added to the `rhads`
   child app. Pipelines operator installs via `subscription-pipelines.yaml`
   (channel `pipelines-1.24`, Automatic). A PostSync Job patches TektonConfig for
@@ -172,6 +185,16 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
 
 ## Gotchas worth knowing
 
+- **TPA OIDC setup Job must not be a Sync hook.** ArgoCD processes hooks
+  separately from regular resources. If the OIDC Job is a hook, the RBAC
+  (Roles/RoleBindings) in the same sync never gets applied before the hook
+  runs, causing a permissions loop. The Job is a regular resource at
+  sync-wave 0; RBAC is at sync-wave -1.
+- **TPA server needs 8Gi memory.** The per-tenant LimitRange defaults to
+  8Gi per container. Lower limits cause OOMKill.
+- **Migrating from shared to per-tenant TPA** leaves orphaned resources
+  (old seed ConfigMaps, keycloak RBAC) that ArgoCD reports as `PruneSkipped`.
+  Delete them manually or provision fresh tenants.
 - **Watch for fail-open.** Four separate bugs here had the same shape: the
   component reported success and left the tenant non-functional. Prefer a loud
   failure at render or bootstrap time over a green sync that does nothing.

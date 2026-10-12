@@ -1,0 +1,211 @@
+{{- if and .Values.tpa.enabled .Values.tpa.rhda.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rhda-backend-secret
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+type: Opaque
+stringData:
+  rhtpa.client.id: {{ .Values.tpa.oidc.cliClientId | quote }}
+  rhtpa.auth.server.url: "https://{{ include "tpa.keycloakHost" . }}/realms/{{ .Values.keycloak.realm }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-ca-bundle
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rhda-backend
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: management
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+  selector:
+    app: rhda-backend
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: rhda-backend
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  host: rhda-{{ .Values.guid }}.{{ .Values.deployer.domain }}
+  to:
+    kind: Service
+    name: rhda-backend
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rhda-backend
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rhda-backend
+  template:
+    metadata:
+      labels:
+        app: rhda-backend
+    spec:
+      initContainers:
+        - name: import-service-ca
+          image: {{ .Values.tpa.images.rhdaInitImage }}
+          command: ['sh', '-c']
+          args:
+            - |
+              cp /etc/pki/java/cacerts /tmp/truststore/cacerts
+              chmod 644 /tmp/truststore/cacerts
+              keytool -import -trustcacerts -noprompt \
+                -keystore /tmp/truststore/cacerts \
+                -storepass changeit \
+                -alias openshift-service-ca \
+                -file /tmp/service-ca/service-ca.crt
+          volumeMounts:
+            - name: service-ca-bundle
+              mountPath: /tmp/service-ca
+              readOnly: true
+            - name: truststore
+              mountPath: /tmp/truststore
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      containers:
+        - name: rhda-backend
+          image: {{ .Values.tpa.images.rhdaBackend }}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: management
+              containerPort: 9000
+              protocol: TCP
+          resources:
+            limits:
+              memory: 2Gi
+              cpu: "1"
+            requests:
+              memory: 1Gi
+              cpu: 250m
+          env:
+            - name: DB_REDIS_HOST
+              value: rhda-backend-redis
+            - name: DB_REDIS_PORT
+              value: "6379"
+            - name: DB_POSTGRES_HOST
+              value: rhda-backend-postgresql
+            - name: DB_POSTGRES_PORT
+              value: "5432"
+            - name: DB_POSTGRES_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-postgresql
+                  key: database-name
+            - name: DB_POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-postgresql
+                  key: database-user
+            - name: DB_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-postgresql
+                  key: database-password
+            - name: DB_POSTGRES_SSLMODE
+              value: disable
+            - name: PROVIDER_RHTPA_HOST
+              value: "https://server.{{ include "tpa.namespace" . }}.svc:443"
+            - name: PROVIDER_RHTPA_AUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-secret
+                  key: rhtpa.client.id
+            - name: PROVIDER_RHTPA_AUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oidc-cli
+                  key: client-secret
+            - name: PROVIDER_RHTPA_AUTH_SERVER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-secret
+                  key: rhtpa.auth.server.url
+            - name: BRANDING_DISPLAY_NAME
+              value: {{ .Values.rhda.branding.displayName | quote }}
+            - name: BRANDING_EXPLORE_URL
+              value: "{{ include "tpa.url" . }}/search"
+            - name: BRANDING_EXPLORE_TITLE
+              value: {{ .Values.rhda.branding.exploreTitle | quote }}
+            - name: BRANDING_EXPLORE_DESCRIPTION
+              value: {{ .Values.rhda.branding.exploreDescription | quote }}
+            - name: MONITORING_ENABLED
+              value: "false"
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -Djavax.net.ssl.trustStore=/tmp/truststore/cacerts
+                -Djavax.net.ssl.trustStorePassword=changeit
+          volumeMounts:
+            - name: truststore
+              mountPath: /tmp/truststore
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+      volumes:
+        - name: service-ca-bundle
+          configMap:
+            name: service-ca-bundle
+        - name: truststore
+          emptyDir: {}
+{{- end }}
