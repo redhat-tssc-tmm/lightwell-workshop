@@ -45,13 +45,10 @@ cnpg:
   source: certified-operators
 
 tpa:
-  namespace: lightwell-tpa
-  channel: stable-v1.1
-  keycloakRealm: trusted-profile-analyzer
-  uiClientId: trustify-ui
-  storageSize: 20Gi
-  dbStorageSize: 5Gi
-  postgresImage: docker.io/library/postgres:16-alpine
+  keycloak:
+    realm: sso
+    frontendClientId: tpa-frontend
+    cliClientId: tpa-cli
 
 rhtas:
   namespace: trusted-artifact-signer
