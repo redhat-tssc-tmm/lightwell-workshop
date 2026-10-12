@@ -8,7 +8,7 @@ same change.
 - **HANDOFF.md** — short operational list (what’s done / next / gotchas).
 - **ADR.md** — why we chose it (context, decision, consequences).
 
-Last synced with HANDOFF: 2026-10-09
+Last synced with HANDOFF: 2026-10-12
 
 ---
 
@@ -191,6 +191,16 @@ Copy and fill for each new decision:
 | **Decision** | The demo trigger set is restricted to artifacts that at least one seeded Acme app declares **directly** in its `pom.xml`. The fake-Lightwell mirror seeds exactly those coordinates, and Showroom instructs students to trigger with one of them. |
 | **Consequences** | Pairs the mirror contents to the app poms — changing either side requires changing the other. Today only `com.h2database:h2` qualifies (upstream has no `org/apache/struts/`), so `benefits-mgmt-app` and `report-generator-app` need either matching rebuilds or pom changes before they can be remediation targets. Handling transitive-only findings would need `dependencyManagement` support in `gitlab_api.py bump-maven-mr`; out of scope for now. |
 
+## ADR-017 — Keyless signing via TAS + Tekton Chains
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-12 |
+| **Title** | Use Trusted Artifact Signer (TAS) with Tekton Chains for keyless container signing |
+| **Context** | The workshop platform needs a supply-chain security story. Static key signing requires long-lived credentials and key rotation overhead. TAS is the Red Hat-supported Sigstore distribution (Fulcio, Rekor, CTLog, TSA, TUF). |
+| **Decision** | Install OpenShift Pipelines (channel `pipelines-1.24`) via the `rhads` ArgoCD child app. Configure Tekton Chains for keyless signing using the cluster Kubernetes OIDC issuer for Fulcio certificate issuance and Rekor for transparency logging. Keycloak provides OIDC for human/email workflows via a dedicated `trusted-artifact-signer` client. TAS namespace changed from `lightwell-tas` → `trusted-artifact-signer`. A PostSync Job (`tektonconfig-patch-job`) patches TektonConfig and updates the Chains InstallerSet audience to `trusted-artifact-signer`. Keycloak OIDC client is configured by a Sync Job (`rhtas-keycloak-setup`). |
+| **Consequences** | No long-lived signing credentials in the cluster. If the Chains audience patch fails (InstallerSet race), signing is misconfigured silently — the PostSync Job now validates the patch applied and warns if not. The `rhtas-setup` SA is scoped to a namespaced Role reading only `keycloak-initial-admin` (not a ClusterRole). ClusterInterceptor binding is scoped to `system:serviceaccounts:openshift-pipelines` — EventListeners in tenant namespaces that need ClusterInterceptors require an additional binding. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -215,3 +225,4 @@ Copy and fill for each new decision:
 | Trigger artifacts must match app poms | ADR-016 |
 | Fake Lightwell / AgnosticV credentials | ADR-016 (contents); install still planned |
 | Spec outlines still say Artifactory… | _(content debt, not an ADR)_ |
+| TAS + Tekton Chains keyless signing | ADR-017 |

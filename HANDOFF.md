@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-09 (AO path re-verified end to end on 8vjv7, image sha-aad125a)
+Last updated: 2026-10-12 (Pipelines + Chains keyless signing added to rhads chart)
 
 ## Where the pieces live
 
@@ -102,6 +102,16 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   a sync hook Job that patches the realm `displayName`.
 - **BuildConfig `triggers: []` drift** fixed — OpenShift strips empty trigger
   arrays, causing perpetual OutOfSync.
+- **OpenShift Pipelines + Tekton Chains keyless signing** added to the `rhads`
+  child app. Pipelines operator installs via `subscription-pipelines.yaml`
+  (channel `pipelines-1.24`, Automatic). A PostSync Job patches TektonConfig for
+  multi-PVC support and configures Chains to use TAS Fulcio/Rekor with the
+  cluster Kubernetes OIDC issuer. TAS namespace is now `trusted-artifact-signer`
+  (was `lightwell-tas`). Keycloak OIDC client `trusted-artifact-signer` is
+  created by the `rhtas-keycloak-setup` Sync Job. If signing is broken: check
+  the `tektonconfig-patch` Job logs in `openshift-pipelines` — the Job now logs
+  a WARNING if the Chains InstallerSet audience patch did not apply.
+  → [ADR-017](ADR.md#adr-017--keyless-signing-via-tas--tekton-chains)
 
 ## Next up
 

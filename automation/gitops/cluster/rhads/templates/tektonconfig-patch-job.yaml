@@ -97,12 +97,12 @@ spec:
               }'
               echo "Chains keyless signing configured (TektonConfig CR)"
 
-              echo "Waiting for Chains InstallerSets..."
-              until oc get tektoninstallersets --no-headers | grep -q "^chain-"; do
+              echo "Waiting for main Chains InstallerSet..."
+              until CHAIN_IS=$(oc get tektoninstallersets --no-headers 2>/dev/null | grep "^chain-" | grep -v "config\|secret\|custom" | awk '{print $1}') && [[ -n "${CHAIN_IS}" ]]; do
                 sleep 10
               done
+              echo "Found InstallerSet: ${CHAIN_IS}"
 
-              CHAIN_IS=$(oc get tektoninstallersets --no-headers | grep "^chain-" | grep -v "config\|secret\|custom" | awk '{print $1}')
               if [ -n "${CHAIN_IS}" ]; then
                 oc get tektoninstallerset ${CHAIN_IS} -o json | \
                   python3 -c "
@@ -116,6 +116,16 @@ spec:
               json.dump(data, sys.stdout)
               " | oc replace -f - 2>/dev/null
                 echo "Chains InstallerSet audience updated to ${AUDIENCE}"
+                PATCHED=$(oc get tektoninstallerset ${CHAIN_IS} -o json | python3 -c "
+              import json,sys
+              data=json.load(sys.stdin)
+              for m in data.get('spec',{}).get('manifests',[]):
+                  for v in m.get('spec',{}).get('template',{}).get('spec',{}).get('volumes',[]):
+                      for s in v.get('projected',{}).get('sources',[]):
+                          aud=s.get('serviceAccountToken',{}).get('audience','')
+                          if aud: print(aud)
+              " 2>/dev/null || true)
+                [[ "${PATCHED}" != "${AUDIENCE}" ]] && echo "WARNING: audience patch may not have applied — verify InstallerSet manually"
               fi
 
               CHAIN_CFG_IS=$(oc get tektoninstallersets --no-headers | grep "^chain-config" | awk '{print $1}')

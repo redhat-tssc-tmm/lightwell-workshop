@@ -8,7 +8,7 @@ metadata:
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
-  backoffLimit: 30
+  backoffLimit: 5
   template:
     spec:
       serviceAccountName: rhtas-setup
@@ -41,7 +41,7 @@ spec:
               kc_api() {
                 local method="$1" path="$2"
                 shift 2
-                curl -sk "https://${KC_HOST}/admin/realms/${KC_REALM}${path}" \
+                curl -sk --fail "https://${KC_HOST}/admin/realms/${KC_REALM}${path}" \
                   -H "Authorization: Bearer $(kc_token)" \
                   -H "Content-Type: application/json" \
                   -X "${method}" \
@@ -54,11 +54,10 @@ spec:
               done
               echo "Keycloak is available."
 
-              EXISTING_CLIENT=$(kc_api GET "/clients" | python3 -c "
+              EXISTING_CLIENT=$(kc_api GET "/clients?clientId=${CLIENT_ID}" | python3 -c "
               import sys, json
               clients = json.load(sys.stdin)
-              matches = [c['id'] for c in clients if c.get('clientId') == '${CLIENT_ID}']
-              print(matches[0] if matches else '')
+              print(clients[0]['id'] if clients else '')
               ")
 
               if [[ -n "${EXISTING_CLIENT}" ]]; then
@@ -81,13 +80,13 @@ spec:
                   \"attributes\": {
                     \"post.logout.redirect.uris\": \"+\"
                   }
-                }" -o /dev/null
-                CLIENT_UUID=$(kc_api GET "/clients" | python3 -c "
+                }" > /dev/null
+                CLIENT_UUID=$(kc_api GET "/clients?clientId=${CLIENT_ID}" | python3 -c "
               import sys, json
               clients = json.load(sys.stdin)
-              matches = [c['id'] for c in clients if c.get('clientId') == '${CLIENT_ID}']
-              print(matches[0] if matches else '')
+              print(clients[0]['id'] if clients else '')
               ")
+                [[ -z "${CLIENT_UUID}" ]] && { echo "ERROR: client creation succeeded but UUID not found"; exit 1; }
                 echo "Client created (UUID: ${CLIENT_UUID})."
               fi
 
@@ -101,7 +100,7 @@ spec:
                 echo "Audience mapper already exists."
               else
                 echo "Adding audience mapper..."
-                kc_api POST "/clients/${CLIENT_UUID}/protocol-mappers/models" -d "{
+                MAPPER_ID=$(kc_api POST "/clients/${CLIENT_UUID}/protocol-mappers/models" -d "{
                   \"name\": \"${CLIENT_ID}-audience\",
                   \"protocol\": \"openid-connect\",
                   \"protocolMapper\": \"oidc-audience-mapper\",
@@ -113,8 +112,9 @@ spec:
                     \"access.token.claim\": \"true\",
                     \"introspection.token.claim\": \"true\"
                   }
-                }" -o /dev/null
-                echo "Audience mapper added."
+                }" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || true)
+                [[ -z "${MAPPER_ID}" ]] && { echo "ERROR: audience mapper creation failed"; exit 1; }
+                echo "Audience mapper added (ID: ${MAPPER_ID})."
               fi
 
               echo ""
@@ -133,28 +133,28 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: rhtas-setup
+  namespace: {{ .Values.rhtas.keycloak.namespace }}
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list"]
-  - apiGroups: [""]
-    resources: ["pods", "pods/exec"]
-    verbs: ["get", "list", "create"]
+    resourceNames: ["keycloak-initial-admin"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: rhtas-setup
+  namespace: {{ .Values.rhtas.keycloak.namespace }}
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: rhtas-setup
 subjects:
   - kind: ServiceAccount
