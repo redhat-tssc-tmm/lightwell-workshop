@@ -35,7 +35,7 @@ gitlab:
 
 keycloak:
   url: "" # default https://sso.{deployer.domain}
-  tpaRealm: sso
+  realm: sso
 
 tpa:
   # Set tpa.enabled=false to skip per-tenant TPA deployment entirely.

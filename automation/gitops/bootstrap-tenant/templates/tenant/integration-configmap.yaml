@@ -8,7 +8,7 @@ metadata:
 data:
   GUID: {{ .Values.guid | quote }}
   KEYCLOAK_URL: {{ include "bootstrap-tenant.keycloakUrl" . | quote }}
-  KEYCLOAK_TPA_REALM: {{ .Values.keycloak.tpaRealm | quote }}
+  KEYCLOAK_TPA_REALM: {{ .Values.keycloak.realm | quote }}
   TPA_URL: {{ include "bootstrap-tenant.tpaUrl" . | quote }}
   TPA_TRUSTIFY_URL: {{ include "bootstrap-tenant.tpaUrl" . | quote }}
   TPA_OAUTH_CLIENT_ID: {{ .Values.tpa.oidc.frontendClientId | quote }}

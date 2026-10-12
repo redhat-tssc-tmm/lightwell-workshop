@@ -70,9 +70,9 @@ spec:
             - name: LW_HELP_APP_BRANCH
               value: {{ .Values.gitlab.defaultBranch | quote }}
             - name: LW_TPA_REALM
-              value: {{ .Values.keycloak.tpaRealm | quote }}
+              value: {{ .Values.keycloak.realm | quote }}
             - name: LW_TPA_CLIENT
-              value: {{ .Values.tpa.uiClientId | quote }}
+              value: {{ .Values.tpa.oidc.frontendClientId | quote }}
             - name: LW_TENANT_USER
               value: {{ .Values.username | quote }}
             - name: LW_TENANT_PASSWORD
