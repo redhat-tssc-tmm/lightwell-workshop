@@ -1,40 +1,98 @@
 apiVersion: rhtas.redhat.com/v1alpha1
 kind: Securesign
 metadata:
-  name: securesign-sample
+  name: {{ .Values.rhtas.instance }}
   namespace: {{ .Values.rhtas.namespace }}
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    rhtas.redhat.com/metrics: 'true'
+    argocd.argoproj.io/sync-wave: {{ .Values.rhtas.syncwave.securesign | quote }}
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  rekor:
-    externalAccess:
-      enabled: true
   fulcio:
-    externalAccess:
-      enabled: true
     certificate:
-      organizationName: RedHat
-      organizationEmail: lightwell@redhat.com
+      commonName: {{ .Values.rhtas.rootCert.commonName }}
+      organizationEmail: {{ .Values.rhtas.rootCert.email }}
+      organizationName: {{ .Values.rhtas.rootCert.org }}
     config:
       OIDCIssuers:
-        - ClientID: "trusted-artifact-signer"
-          IssuerURL: "https://sso.{{ .Values.deployer.domain }}/realms/trusted-artifact-signer"
-          Issuer: "https://sso.{{ .Values.deployer.domain }}/realms/trusted-artifact-signer"
+        - ClientID: {{ .Values.rhtas.oidc.clientId }}
+          Issuer: 'https://sso.{{ .Values.deployer.domain }}/realms/{{ .Values.rhtas.keycloak.realm }}'
+          IssuerURL: 'https://sso.{{ .Values.deployer.domain }}/realms/{{ .Values.rhtas.keycloak.realm }}'
           Type: email
-  ctlog: {}
+        - ClientID: {{ .Values.rhtas.oidc.clientId }}
+          Issuer: https://kubernetes.default.svc
+          IssuerURL: https://kubernetes.default.svc
+          Type: kubernetes
+    ctlog:
+      port: 80
+      prefix: trusted-artifact-signer
+    externalAccess:
+      enabled: true
+    monitoring:
+      enabled: true
+  rekor:
+    monitoring:
+      enabled: true
+    signer:
+      kms: secret
+    trillian:
+      port: 8091
+    externalAccess:
+      enabled: true
+    backFillRedis:
+      enabled: true
+      schedule: 0 0 * * *
+    rekorSearchUI:
+      enabled: true
+    pvc:
+      accessModes:
+        - ReadWriteOnce
+      retain: true
+      size: 5Gi
+  trillian:
+    database:
+      create: true
+      pvc:
+        accessModes:
+          - ReadWriteOnce
+        retain: true
+        size: 5Gi
+    monitoring:
+      enabled: true
+  tsa:
+    externalAccess:
+      enabled: true
+    monitoring:
+      enabled: true
+    ntpMonitoring:
+      enabled: true
+    signer:
+      certificateChain:
+        rootCA:
+          commonName: {{ .Values.rhtas.rootCert.commonName }}-tsa-root
+          organizationEmail: {{ .Values.rhtas.rootCert.email }}
+          organizationName: {{ .Values.rhtas.rootCert.org }}
+        intermediateCA:
+          - commonName: {{ .Values.rhtas.rootCert.commonName }}-tsa-intermediate
+            organizationEmail: {{ .Values.rhtas.rootCert.email }}
+            organizationName: {{ .Values.rhtas.rootCert.org }}
+        leafCA:
+          commonName: {{ .Values.rhtas.rootCert.commonName }}-tsa-leafCA
+          organizationEmail: {{ .Values.rhtas.rootCert.email }}
+          organizationName: {{ .Values.rhtas.rootCert.org }}
   tuf:
     externalAccess:
       enabled: true
-    # This chart does not deploy a TimestampAuthority (spec.tsa is unset), so the
-    # tsa.certchain.pem key the operator otherwise defaults in has no backing
-    # secret — Tuf sits Pending on `Secret "" not found` and never goes Ready.
-    # Explicitly list only the 3 keys that have real backing components so the
-    # operator's defaulting webhook doesn't re-add tsa.certchain.pem.
     keys:
       - name: rekor.pub
       - name: ctfe.pub
       - name: fulcio_v1.crt.pem
-  trillian:
-    database:
-      create: true
+      - name: tsa.certchain.pem
+    port: 80
+    pvc:
+      accessModes:
+        - ReadWriteOnce
+      retain: true
+      size: 100Mi
+    rootKeySecretRef:
+      name: tuf-root-keys

@@ -28,5 +28,22 @@ spec:
         rhtas:
           namespace: {{ .Values.rhtas.namespace }}
           channel: {{ .Values.rhtas.channel }}
+          instance: {{ .Values.rhtas.instance }}
+          oidc:
+            clientId: {{ .Values.rhtas.oidc.clientId }}
+          rootCert:
+            commonName: {{ .Values.rhtas.rootCert.commonName }}
+            email: {{ .Values.rhtas.rootCert.email }}
+            org: {{ .Values.rhtas.rootCert.org }}
+          keycloak:
+            namespace: {{ .Values.rhtas.keycloak.namespace }}
+            realm: {{ .Values.rhtas.keycloak.realm }}
+          syncwave:
+            keycloakJob: {{ .Values.rhtas.syncwave.keycloakJob | quote }}
+            securesign: {{ .Values.rhtas.syncwave.securesign | quote }}
+        pipelines:
+          channel: {{ .Values.pipelines.channel }}
+          chains:
+            audience: {{ .Values.pipelines.chains.audience }}
         jobAnsibleImage: {{ .Values.jobAnsibleImage }}
 {{ include "app-of-apps.syncPolicy" . | indent 2 }}

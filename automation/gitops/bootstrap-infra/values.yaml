@@ -54,8 +54,26 @@ tpa:
   postgresImage: docker.io/library/postgres:16-alpine
 
 rhtas:
-  namespace: lightwell-tas
+  namespace: trusted-artifact-signer
   channel: stable-v1.4
+  instance: securesign
+  oidc:
+    clientId: trusted-artifact-signer
+  rootCert:
+    commonName: CISO-office
+    email: lightwell@redhat.com
+    org: RedHat
+  keycloak:
+    namespace: keycloak
+    realm: sso
+  syncwave:
+    keycloakJob: "1"
+    securesign: "2"
+
+pipelines:
+  channel: pipelines-1.24
+  chains:
+    audience: trusted-artifact-signer
 
 quay:
   namespace: lightwell-quay

@@ -1,0 +1,162 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhtas-keycloak-setup
+  namespace: {{ .Values.rhtas.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.rhtas.syncwave.keycloakJob | quote }}
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      serviceAccountName: rhtas-setup
+      restartPolicy: OnFailure
+      containers:
+        - name: keycloak-setup
+          image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              KC_NAMESPACE="{{ .Values.rhtas.keycloak.namespace }}"
+              KC_HOST="sso.{{ .Values.deployer.domain }}"
+              KC_REALM="{{ .Values.rhtas.keycloak.realm }}"
+              CLIENT_ID="{{ .Values.rhtas.oidc.clientId }}"
+
+              KC_ADMIN_USER=$(oc get secret keycloak-initial-admin -n "${KC_NAMESPACE}" -o jsonpath='{.data.username}' | base64 -d)
+              KC_ADMIN_PASS=$(oc get secret keycloak-initial-admin -n "${KC_NAMESPACE}" -o jsonpath='{.data.password}' | base64 -d)
+
+              kc_token() {
+                curl -sk "https://${KC_HOST}/realms/master/protocol/openid-connect/token" \
+                  -d "client_id=admin-cli" \
+                  -d "username=${KC_ADMIN_USER}" \
+                  -d "password=${KC_ADMIN_PASS}" \
+                  -d "grant_type=password" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])"
+              }
+
+              kc_api() {
+                local method="$1" path="$2"
+                shift 2
+                curl -sk --fail "https://${KC_HOST}/admin/realms/${KC_REALM}${path}" \
+                  -H "Authorization: Bearer $(kc_token)" \
+                  -H "Content-Type: application/json" \
+                  -X "${method}" \
+                  "$@"
+              }
+
+              echo "Waiting for Keycloak..."
+              until curl -sk "https://${KC_HOST}/realms/${KC_REALM}/.well-known/openid-configuration" | grep -q '"issuer"'; do
+                sleep 10
+              done
+              echo "Keycloak is available."
+
+              EXISTING_CLIENT=$(kc_api GET "/clients?clientId=${CLIENT_ID}" | python3 -c "
+              import sys, json
+              clients = json.load(sys.stdin)
+              print(clients[0]['id'] if clients else '')
+              ")
+
+              if [[ -n "${EXISTING_CLIENT}" ]]; then
+                echo "Client '${CLIENT_ID}' already exists (UUID: ${EXISTING_CLIENT})."
+                CLIENT_UUID="${EXISTING_CLIENT}"
+              else
+                echo "Creating client '${CLIENT_ID}'..."
+                kc_api POST "/clients" -d "{
+                  \"clientId\": \"${CLIENT_ID}\",
+                  \"name\": \"Trusted Artifact Signer\",
+                  \"description\": \"OIDC client for Fulcio code signing\",
+                  \"protocol\": \"openid-connect\",
+                  \"publicClient\": true,
+                  \"standardFlowEnabled\": true,
+                  \"directAccessGrantsEnabled\": true,
+                  \"frontchannelLogout\": true,
+                  \"fullScopeAllowed\": true,
+                  \"redirectUris\": [\"urn:ietf:wg:oauth:2.0:oob\", \"*\"],
+                  \"webOrigins\": [\"*\"],
+                  \"attributes\": {
+                    \"post.logout.redirect.uris\": \"+\"
+                  }
+                }" > /dev/null
+                CLIENT_UUID=$(kc_api GET "/clients?clientId=${CLIENT_ID}" | python3 -c "
+              import sys, json
+              clients = json.load(sys.stdin)
+              print(clients[0]['id'] if clients else '')
+              ")
+                [[ -z "${CLIENT_UUID}" ]] && { echo "ERROR: client creation succeeded but UUID not found"; exit 1; }
+                echo "Client created (UUID: ${CLIENT_UUID})."
+              fi
+
+              MAPPER_EXISTS=$(kc_api GET "/clients/${CLIENT_UUID}/protocol-mappers/models" | python3 -c "
+              import sys, json
+              mappers = json.load(sys.stdin)
+              print('yes' if any(m.get('name') == '${CLIENT_ID}-audience' for m in mappers) else '')
+              ")
+
+              if [[ -n "${MAPPER_EXISTS}" ]]; then
+                echo "Audience mapper already exists."
+              else
+                echo "Adding audience mapper..."
+                MAPPER_ID=$(kc_api POST "/clients/${CLIENT_UUID}/protocol-mappers/models" -d "{
+                  \"name\": \"${CLIENT_ID}-audience\",
+                  \"protocol\": \"openid-connect\",
+                  \"protocolMapper\": \"oidc-audience-mapper\",
+                  \"consentRequired\": false,
+                  \"config\": {
+                    \"included.client.audience\": \"${CLIENT_ID}\",
+                    \"id.token.claim\": \"false\",
+                    \"lightweight.claim\": \"false\",
+                    \"access.token.claim\": \"true\",
+                    \"introspection.token.claim\": \"true\"
+                  }
+                }" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || true)
+                [[ -z "${MAPPER_ID}" ]] && { echo "ERROR: audience mapper creation failed"; exit 1; }
+                echo "Audience mapper added (ID: ${MAPPER_ID})."
+              fi
+
+              echo ""
+              echo "=========================================="
+              echo " RHTAS Keycloak setup complete."
+              echo "  Client: ${CLIENT_ID} (public)"
+              echo "  Audience mapper: ${CLIENT_ID}-audience"
+              echo "=========================================="
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhtas-setup
+  namespace: {{ .Values.rhtas.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhtas-setup
+  namespace: {{ .Values.rhtas.keycloak.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["keycloak-initial-admin"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhtas-setup
+  namespace: {{ .Values.rhtas.keycloak.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rhtas-setup
+subjects:
+  - kind: ServiceAccount
+    name: rhtas-setup
+    namespace: {{ .Values.rhtas.namespace }}

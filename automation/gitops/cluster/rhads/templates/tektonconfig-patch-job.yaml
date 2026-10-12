@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tektonconfig-patch
+  namespace: openshift-pipelines
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tektonconfig-patch
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+rules:
+  - apiGroups: ["operator.tekton.dev"]
+    resources: ["tektonconfigs"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["operator.tekton.dev"]
+    resources: ["tektoninstallersets"]
+    verbs: ["get", "list", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tektonconfig-patch
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tektonconfig-patch
+subjects:
+  - kind: ServiceAccount
+    name: tektonconfig-patch
+    namespace: openshift-pipelines
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tektonconfig-patch
+  namespace: openshift-pipelines
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: tektonconfig-patch
+      containers:
+        - name: patch
+          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "Waiting for TektonConfig to exist..."
+              until oc get tektonconfig config > /dev/null 2>&1; do
+                sleep 5
+              done
+
+              oc patch tektonconfig config --type merge \
+                -p '{"spec":{"pipeline":{"coschedule":"pipelineruns"}}}'
+              echo "Pipeline config patched"
+
+              FULCIO_URL="{{ .Values.pipelines.chains.fulcioAddress }}"
+              REKOR_URL="{{ .Values.pipelines.chains.rekorAddress }}"
+              AUDIENCE="{{ .Values.pipelines.chains.audience }}"
+
+              oc patch tektonconfig config --type merge -p '{
+                "spec": {
+                  "chain": {
+                    "signers.x509.fulcio.enabled": true,
+                    "signers.x509.fulcio.address": "'"${FULCIO_URL}"'",
+                    "signers.x509.fulcio.issuer": "https://kubernetes.default.svc",
+                    "signers.x509.identity.token.file": "/var/run/sigstore/cosign/oidc-token",
+                    "transparency.enabled": true,
+                    "transparency.url": "'"${REKOR_URL}"'",
+                    "artifacts.pipelinerun.format": "in-toto",
+                    "artifacts.pipelinerun.storage": "oci",
+                    "artifacts.taskrun.format": "in-toto",
+                    "artifacts.taskrun.storage": "oci"
+                  }
+                }
+              }'
+              echo "Chains keyless signing configured (TektonConfig CR)"
+
+              echo "Waiting for main Chains InstallerSet..."
+              until CHAIN_IS=$(oc get tektoninstallersets --no-headers 2>/dev/null | grep "^chain-" | grep -v "config\|secret\|custom" | awk '{print $1}') && [[ -n "${CHAIN_IS}" ]]; do
+                sleep 10
+              done
+              echo "Found InstallerSet: ${CHAIN_IS}"
+
+              if [ -n "${CHAIN_IS}" ]; then
+                oc get tektoninstallerset ${CHAIN_IS} -o json | \
+                  python3 -c "
+              import json, sys
+              data = json.load(sys.stdin)
+              for m in data['spec']['manifests']:
+                  if m.get('kind') == 'Deployment':
+                      for v in m['spec']['template']['spec']['volumes']:
+                          if v.get('name') == 'oidc-info':
+                              v['projected']['sources'][0]['serviceAccountToken']['audience'] = '${AUDIENCE}'
+              json.dump(data, sys.stdout)
+              " | oc replace -f - 2>/dev/null
+                echo "Chains InstallerSet audience updated to ${AUDIENCE}"
+                PATCHED=$(oc get tektoninstallerset ${CHAIN_IS} -o json | python3 -c "
+              import json,sys
+              data=json.load(sys.stdin)
+              for m in data.get('spec',{}).get('manifests',[]):
+                  for v in m.get('spec',{}).get('template',{}).get('spec',{}).get('volumes',[]):
+                      for s in v.get('projected',{}).get('sources',[]):
+                          aud=s.get('serviceAccountToken',{}).get('audience','')
+                          if aud: print(aud)
+              " 2>/dev/null || true)
+                [[ "${PATCHED}" != "${AUDIENCE}" ]] && echo "WARNING: audience patch may not have applied — verify InstallerSet manually"
+              fi
+
+              CHAIN_CFG_IS=$(oc get tektoninstallersets --no-headers | grep "^chain-config" | awk '{print $1}')
+              if [ -n "${CHAIN_CFG_IS}" ]; then
+                oc get tektoninstallerset ${CHAIN_CFG_IS} -o json | \
+                  python3 -c "
+              import json, sys
+              data = json.load(sys.stdin)
+              for m in data['spec']['manifests']:
+                  if m.get('kind') == 'ConfigMap' and m['metadata'].get('name') == 'chains-config':
+                      m['data']['artifacts.pipelinerun.format'] = 'in-toto'
+                      m['data']['artifacts.pipelinerun.storage'] = 'oci'
+                      m['data']['artifacts.taskrun.format'] = 'in-toto'
+                      m['data']['artifacts.taskrun.storage'] = 'oci'
+              json.dump(data, sys.stdout)
+              " | oc replace -f - 2>/dev/null
+                echo "Chains InstallerSet attestation format updated"
+              fi
+
+              echo "TektonConfig patched"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
