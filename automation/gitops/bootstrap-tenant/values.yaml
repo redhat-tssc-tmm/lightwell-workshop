@@ -2,6 +2,9 @@ guid: CHANGEME
 username: user-CHANGEME
 password: changeme
 
+argocd:
+  namespace: openshift-gitops
+
 deployer:
   domain: apps.example.com
   storageClass: ocs-external-storagecluster-ceph-rbd-immediate
@@ -35,12 +38,11 @@ keycloak:
   tpaRealm: sso
 
 tpa:
-  # Per-tenant TPA subchart values (charts/tpa/).
   # Set tpa.enabled=false to skip per-tenant TPA deployment entirely.
   enabled: true
   url: "" # default https://tpa-{guid}.{deployer.domain}
-  # Toggle RHDA dependency analytics backend per tenant.
-  # Set to false to save ~1 CPU / 2Gi memory per tenant.
+  # Set to false to disable RHDA (Red Hat Dependency Analytics) backend per tenant.
+  # Saves ~1 CPU / 2Gi memory per tenant by skipping RHDA backend, PostgreSQL, Redis.
   rhda:
     enabled: true
   chartVersion: "*"
@@ -48,6 +50,67 @@ tpa:
     frontendClientId: tpa-frontend
     cliClientId: tpa-cli
   sbomLabel: "" # default sdlc-demo-{guid}
+  postgresql:
+    credentials:
+      dbHost: tpa-postgresql
+      dbName: tpadb
+      dbUser: tpauser
+      dbPassword: r3dh8t1!
+      dbAdmin: postgres
+      dbAdminPassword: adminr3dh8t1!
+      dbPort: "5432"
+    storage:
+      size: 5Gi
+    tuning:
+      maxWalSize: "1GB"
+      minWalSize: "128MB"
+      walBuffers: "16MB"
+      maintenanceWorkMem: "64MB"
+      workMem: "2MB"
+      sharedBuffers: "128MB"
+      effectiveCacheSize: "512MB"
+      maxConnections: 100
+  objectBucketClaim:
+    name: tpa-bucket-claim
+    storageClassName: openshift-storage.noobaa.io
+  dataset:
+    url: "https://raw.githubusercontent.com/redhat-tssc-tmm/rhdp-tpa-demo/main/datasets/tpa-demo-dataset-v2.zip"
+  images:
+    postgresql: registry.redhat.io/rhel10/postgresql-18
+    dataset: registry.redhat.io/ubi9/ubi
+    rhdaBackend: quay.io/tssc_demos/trustify-dependency-analytics:v3.1.0
+    rhdaInitImage: registry.redhat.io/ubi9/openjdk-21-runtime:1.23
+    redis: registry.redhat.io/rhel9/redis-7:latest
+
+rhda:
+  postgresql:
+    storage: 1Gi
+    database: trustify_da
+    username: trustify_da
+    password: "r3dh8t1!"
+  redis:
+    storage: 1Gi
+  branding:
+    displayName: "Red Hat Trusted Profile Analyzer"
+    exploreTitle: "Open your Red Hat Trusted Profile Analyzer"
+    exploreDescription: "Red Hat Trusted Profile Analyzer helps organizations manage SBOMs, vulnerability advisories, and VEX data."
+
+resourceQuota:
+  limits:
+    cpu: "16"
+    memory: 32Gi
+  requests:
+    cpu: "16"
+    memory: 32Gi
+    storage: 50Gi
+
+limitRange:
+  default:
+    cpu: "2"
+    memory: 8Gi
+  defaultRequest:
+    cpu: 250m
+    memory: 256Mi
 
 nexus:
   image: sonatype/nexus3:3.76.1
