@@ -1,0 +1,33 @@
+{{- if .Values.tpa.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tpa-quota
+  namespace: {{ include "tpa.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  hard:
+    limits.cpu: {{ .Values.resourceQuota.limits.cpu | quote }}
+    limits.memory: {{ .Values.resourceQuota.limits.memory }}
+    requests.cpu: {{ .Values.resourceQuota.requests.cpu | quote }}
+    requests.memory: {{ .Values.resourceQuota.requests.memory }}
+    requests.storage: {{ .Values.resourceQuota.requests.storage }}
+{{- if .Values.tpa.rhda.enabled }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: rhda-quota
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  hard:
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    requests.cpu: "4"
+    requests.memory: 4Gi
+    requests.storage: 10Gi
+{{- end }}
+{{- end }}

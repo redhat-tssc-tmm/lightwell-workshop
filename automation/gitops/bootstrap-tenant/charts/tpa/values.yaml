@@ -1,0 +1,83 @@
+guid: ""
+
+deployer:
+  domain: apps.example.com
+
+argocd:
+  namespace: openshift-gitops
+
+keycloak:
+  realm: sso
+
+tpa:
+  enabled: true
+  # Set to false to disable RHDA (Red Hat Dependency Analytics) backend per tenant.
+  # This saves ~1 CPU / 2Gi memory per tenant by skipping the RHDA backend,
+  # its own PostgreSQL, and Redis deployments.
+  rhda:
+    enabled: true
+  chartVersion: "*"
+  oidc:
+    frontendClientId: tpa-frontend
+    cliClientId: tpa-cli
+  postgresql:
+    credentials:
+      dbHost: tpa-postgresql
+      dbName: tpadb
+      dbUser: tpauser
+      dbPassword: r3dh8t1!
+      dbAdmin: postgres
+      dbAdminPassword: adminr3dh8t1!
+      dbPort: "5432"
+    storage:
+      size: 5Gi
+    tuning:
+      maxWalSize: "1GB"
+      minWalSize: "128MB"
+      walBuffers: "16MB"
+      maintenanceWorkMem: "64MB"
+      workMem: "2MB"
+      sharedBuffers: "128MB"
+      effectiveCacheSize: "512MB"
+      maxConnections: 100
+  objectBucketClaim:
+    name: tpa-bucket-claim
+    storageClassName: openshift-storage.noobaa.io
+  dataset:
+    url: "https://raw.githubusercontent.com/redhat-tssc-tmm/rhdp-tpa-demo/main/datasets/tpa-demo-dataset-v2.zip"
+  images:
+    postgresql: registry.redhat.io/rhel10/postgresql-18
+    dataset: registry.redhat.io/ubi9/ubi
+    rhdaBackend: quay.io/tssc_demos/trustify-dependency-analytics:v3.1.0
+    rhdaInitImage: registry.redhat.io/ubi9/openjdk-21-runtime:1.23
+    redis: registry.redhat.io/rhel9/redis-7:latest
+
+rhda:
+  postgresql:
+    storage: 1Gi
+    database: trustify_da
+    username: trustify_da
+    password: "r3dh8t1!"
+  redis:
+    storage: 1Gi
+  branding:
+    displayName: "Red Hat Trusted Profile Analyzer"
+    exploreTitle: "Open your Red Hat Trusted Profile Analyzer"
+    exploreDescription: "Red Hat Trusted Profile Analyzer helps organizations manage SBOMs, vulnerability advisories, and VEX data."
+
+resourceQuota:
+  limits:
+    cpu: "16"
+    memory: 32Gi
+  requests:
+    cpu: "16"
+    memory: 32Gi
+    storage: 50Gi
+
+limitRange:
+  default:
+    cpu: "2"
+    memory: 8Gi
+  defaultRequest:
+    cpu: 250m
+    memory: 256Mi

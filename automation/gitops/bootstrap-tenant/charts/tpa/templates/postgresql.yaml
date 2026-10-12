@@ -1,0 +1,163 @@
+{{- if .Values.tpa.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tpa-postgresql-credentials
+  namespace: {{ include "tpa.namespace" . }}
+  labels:
+    app: tpa-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  db.host: {{ .Values.tpa.postgresql.credentials.dbHost | quote }}
+  db.name: {{ .Values.tpa.postgresql.credentials.dbName | quote }}
+  db.user: {{ .Values.tpa.postgresql.credentials.dbUser | quote }}
+  db.password: {{ .Values.tpa.postgresql.credentials.dbPassword | quote }}
+  db.admin: {{ .Values.tpa.postgresql.credentials.dbAdmin | quote }}
+  db.adminpassword: {{ .Values.tpa.postgresql.credentials.dbAdminPassword | quote }}
+  db.port: {{ .Values.tpa.postgresql.credentials.dbPort | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tpa-pgsql-tuning
+  namespace: {{ include "tpa.namespace" . }}
+  labels:
+    app: tpa-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+data:
+  wal-tuning.conf: |
+    max_wal_size = '{{ .Values.tpa.postgresql.tuning.maxWalSize }}'
+    min_wal_size = '{{ .Values.tpa.postgresql.tuning.minWalSize }}'
+    wal_buffers = '{{ .Values.tpa.postgresql.tuning.walBuffers }}'
+    maintenance_work_mem = '{{ .Values.tpa.postgresql.tuning.maintenanceWorkMem }}'
+    work_mem = '{{ .Values.tpa.postgresql.tuning.workMem }}'
+    max_connections = {{ .Values.tpa.postgresql.tuning.maxConnections | default 100 }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tpa-postgresql-data
+  namespace: {{ include "tpa.namespace" . }}
+  labels:
+    app: tpa-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.tpa.postgresql.storage.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tpa-postgresql
+  namespace: {{ include "tpa.namespace" . }}
+  labels:
+    app: tpa-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  ports:
+    - name: postgresql
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+  selector:
+    app: tpa-postgresql
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tpa-postgresql
+  namespace: {{ include "tpa.namespace" . }}
+  labels:
+    app: tpa-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tpa-postgresql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: tpa-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: {{ .Values.tpa.images.postgresql }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRESQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tpa-postgresql-credentials
+                  key: db.user
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tpa-postgresql-credentials
+                  key: db.password
+            - name: POSTGRESQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: tpa-postgresql-credentials
+                  key: db.name
+            - name: POSTGRESQL_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tpa-postgresql-credentials
+                  key: db.adminpassword
+            - name: POSTGRESQL_SHARED_BUFFERS
+              value: {{ .Values.tpa.postgresql.tuning.sharedBuffers | quote }}
+            - name: POSTGRESQL_EFFECTIVE_CACHE_SIZE
+              value: {{ .Values.tpa.postgresql.tuning.effectiveCacheSize | quote }}
+          volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/pgsql/data
+            - name: pgsql-tuning
+              mountPath: /opt/app-root/src/postgresql-cfg
+          livenessProbe:
+            exec:
+              command:
+                - /usr/libexec/check-container
+                - --live
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            exec:
+              command:
+                - /usr/libexec/check-container
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 10
+          resources:
+            limits:
+              memory: 1Gi
+              cpu: 500m
+            requests:
+              memory: 512Mi
+              cpu: 250m
+      volumes:
+        - name: postgresql-data
+          persistentVolumeClaim:
+            claimName: tpa-postgresql-data
+        - name: pgsql-tuning
+          configMap:
+            name: tpa-pgsql-tuning
+{{- end }}

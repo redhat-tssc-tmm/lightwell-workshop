@@ -32,16 +32,22 @@ gitlab:
 
 keycloak:
   url: "" # default https://sso.{deployer.domain}
-  tpaRealm: trusted-profile-analyzer
+  tpaRealm: sso
 
 tpa:
-  namespace: lightwell-tpa
-  url: "" # default https://server-{tpa.namespace}.{deployer.domain}
-  uiClientId: trustify-ui
-  uploaderUsername: "" # default lightwell-uploader-{guid}
+  # Per-tenant TPA subchart values (charts/tpa/).
+  # Set tpa.enabled=false to skip per-tenant TPA deployment entirely.
+  enabled: true
+  url: "" # default https://tpa-{guid}.{deployer.domain}
+  # Toggle RHDA dependency analytics backend per tenant.
+  # Set to false to save ~1 CPU / 2Gi memory per tenant.
+  rhda:
+    enabled: true
+  chartVersion: "*"
+  oidc:
+    frontendClientId: tpa-frontend
+    cliClientId: tpa-cli
   sbomLabel: "" # default sdlc-demo-{guid}
-  adminUsername: admin # Keycloak realm user for platform admin (AAP/GitLab admin password)
-  adminPassword: "" # default tenant password; set to bootstrap-infra admin.password if different
 
 nexus:
   image: sonatype/nexus3:3.76.1

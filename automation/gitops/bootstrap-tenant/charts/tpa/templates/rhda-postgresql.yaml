@@ -1,0 +1,120 @@
+{{- if and .Values.tpa.enabled .Values.tpa.rhda.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rhda-backend-postgresql
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+type: Opaque
+stringData:
+  database-name: {{ .Values.rhda.postgresql.database | quote }}
+  database-user: {{ .Values.rhda.postgresql.username | quote }}
+  database-password: {{ .Values.rhda.postgresql.password | quote }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rhda-backend-postgresql
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.rhda.postgresql.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rhda-backend-postgresql
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: rhda-backend-postgresql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rhda-backend-postgresql
+  namespace: {{ include "tpa.rhdaNamespace" . }}
+  labels:
+    app: rhda-backend-postgresql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rhda-backend-postgresql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: rhda-backend-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: {{ .Values.tpa.images.postgresql }}
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRESQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-postgresql
+                  key: database-user
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-postgresql
+                  key: database-password
+            - name: POSTGRESQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: rhda-backend-postgresql
+                  key: database-name
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 500m
+            requests:
+              memory: 256Mi
+              cpu: 100m
+          volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/pgsql/data
+          livenessProbe:
+            exec:
+              command:
+                - /usr/libexec/check-container
+                - --live
+            initialDelaySeconds: 120
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /usr/libexec/check-container
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+      volumes:
+        - name: postgresql-data
+          persistentVolumeClaim:
+            claimName: rhda-backend-postgresql
+{{- end }}

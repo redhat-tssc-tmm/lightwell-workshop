@@ -1,0 +1,17 @@
+{{- if .Values.tpa.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "tpa.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+{{- if .Values.tpa.rhda.enabled }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "tpa.rhdaNamespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+{{- end }}
+{{- end }}

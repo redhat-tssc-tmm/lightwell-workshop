@@ -1,0 +1,5 @@
+apiVersion: v2
+name: tpa
+description: Per-tenant TPA (Trusted Profile Analyzer) deployment
+type: application
+version: 0.1.0
