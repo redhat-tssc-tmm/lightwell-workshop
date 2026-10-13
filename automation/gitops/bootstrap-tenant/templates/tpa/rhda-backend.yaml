@@ -122,10 +122,10 @@ spec:
               protocol: TCP
           resources:
             limits:
-              memory: 2Gi
+              memory: 3Gi
               cpu: "1"
             requests:
-              memory: 1Gi
+              memory: 1536Mi
               cpu: 250m
           env:
             - name: DB_REDIS_HOST
