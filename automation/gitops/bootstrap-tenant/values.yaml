@@ -41,10 +41,10 @@ tpa:
   # Set tpa.enabled=false to skip per-tenant TPA deployment entirely.
   enabled: true
   url: "" # default https://tpa-{guid}.{deployer.domain}
-  # Set to false to disable RHDA (Red Hat Dependency Analytics) backend per tenant.
-  # Saves ~1 CPU / 2Gi memory per tenant by skipping RHDA backend, PostgreSQL, Redis.
+  # Set to true to enable RHDA (Red Hat Dependency Analytics) backend per tenant.
+  # Adds ~1 CPU / 3Gi memory per tenant (RHDA backend, PostgreSQL, Redis).
   rhda:
-    enabled: true
+    enabled: false
   chartVersion: "*"
   oidc:
     frontendClientId: tpa-frontend
