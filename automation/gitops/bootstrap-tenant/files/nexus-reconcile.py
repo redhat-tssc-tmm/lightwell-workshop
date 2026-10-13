@@ -118,6 +118,25 @@ def create_oci_repo(
         sys.exit(1)
 
 
+def accept_eula(base: str, user: str, password: str) -> None:
+    url = f"{base.rstrip('/')}/service/rest/v1/system/eula"
+    code, data = request("GET", url, user, password)
+    if code != 200 or not isinstance(data, dict):
+        print(f"Note: EULA endpoint returned {code} (skipped, may be pre-3.77)")
+        return
+    if data.get("accepted"):
+        print("EULA already accepted")
+        return
+    disclaimer = data.get("disclaimer", "")
+    code, _ = request(
+        "POST", url, user, password, {"accepted": True, "disclaimer": disclaimer}
+    )
+    if code in (200, 204):
+        print("EULA accepted")
+    else:
+        print(f"WARNING: EULA accept returned {code}")
+
+
 def enable_anonymous(base: str, user: str, password: str) -> None:
     url = f"{base.rstrip('/')}/service/rest/v1/security/anonymous"
     body = {
@@ -361,6 +380,7 @@ def main() -> None:
     oci_port = int(env("NEXUS_OCI_PORT", "5000"))
 
     wait_for_nexus(nexus_url, nexus_user, nexus_pass)
+    accept_eula(nexus_url, nexus_user, nexus_pass)
     enable_anonymous(nexus_url, nexus_user, nexus_pass)
     enable_docker_realm(nexus_url, nexus_user, nexus_pass)
     create_oci_repo(nexus_url, nexus_user, nexus_pass, oci_repo, oci_port)
