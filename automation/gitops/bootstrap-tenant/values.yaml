@@ -113,7 +113,7 @@ limitRange:
     memory: 256Mi
 
 nexus:
-  image: sonatype/nexus3:3.76.1
+  image: sonatype/nexus3:3.96.4-ubi
   storageSize: 50Gi
   oci:
     port: 5000
