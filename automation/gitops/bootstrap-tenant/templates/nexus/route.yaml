@@ -12,7 +12,7 @@ spec:
     kind: Service
     name: nexus
   port:
-    targetPort: http
+    targetPort: nexus-http
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect

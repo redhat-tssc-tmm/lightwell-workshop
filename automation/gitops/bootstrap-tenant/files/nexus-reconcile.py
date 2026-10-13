@@ -72,6 +72,71 @@ def wait_for_nexus(base: str, user: str, password: str) -> None:
     sys.exit(1)
 
 
+def enable_docker_realm(base: str, user: str, password: str) -> None:
+    url = f"{base.rstrip('/')}/service/rest/v1/security/realms/active"
+    code, realms = request("GET", url, user, password)
+    if code != 200 or not isinstance(realms, list):
+        print(f"WARNING: could not read active realms (HTTP {code})")
+        return
+    if "DockerToken" in realms:
+        print("Docker Bearer Token Realm already active")
+        return
+    realms.append("DockerToken")
+    code, _ = request("PUT", url, user, password, realms)
+    if code in (200, 204):
+        print("Docker Bearer Token Realm enabled")
+    else:
+        print(f"WARNING: enable Docker realm returned {code}")
+
+
+def create_oci_repo(
+    base: str, user: str, password: str, name: str, port: int
+) -> None:
+    if repo_exists(base, user, password, name):
+        print(f"Skip OCI repo (exists): {name}")
+        return
+    body = {
+        "name": name,
+        "online": True,
+        "storage": {
+            "blobStoreName": "default",
+            "strictContentTypeValidation": True,
+            "writePolicy": "ALLOW",
+        },
+        "docker": {
+            "v1Enabled": False,
+            "forceBasicAuth": False,
+            "httpPort": port,
+        },
+    }
+    url = f"{base.rstrip('/')}/service/rest/v1/repositories/docker/hosted"
+    code, resp = request("POST", url, user, password, body)
+    if code in (201, 400):
+        print(f"OCI repo {name}: HTTP {code}")
+    else:
+        print(f"ERROR creating OCI repo {name}: {code} {resp}", file=sys.stderr)
+        sys.exit(1)
+
+
+def accept_eula(base: str, user: str, password: str) -> None:
+    url = f"{base.rstrip('/')}/service/rest/v1/system/eula"
+    code, data = request("GET", url, user, password)
+    if code != 200 or not isinstance(data, dict):
+        print(f"Note: EULA endpoint returned {code} (skipped, may be pre-3.77)")
+        return
+    if data.get("accepted"):
+        print("EULA already accepted")
+        return
+    disclaimer = data.get("disclaimer", "")
+    code, _ = request(
+        "POST", url, user, password, {"accepted": True, "disclaimer": disclaimer}
+    )
+    if code in (200, 204):
+        print("EULA accepted")
+    else:
+        print(f"WARNING: EULA accept returned {code}")
+
+
 def enable_anonymous(base: str, user: str, password: str) -> None:
     url = f"{base.rstrip('/')}/service/rest/v1/security/anonymous"
     body = {
@@ -311,8 +376,14 @@ def main() -> None:
     skip_repos = env("SKIP_REPOSITORY_SETUP", "false").lower() in ("1", "true", "yes")
     skip_webhooks = env("SKIP_WEBHOOK_SETUP", "false").lower() in ("1", "true", "yes")
 
+    oci_repo = env("NEXUS_OCI_REPO_NAME", "oci")
+    oci_port = int(env("NEXUS_OCI_PORT", "5000"))
+
     wait_for_nexus(nexus_url, nexus_user, nexus_pass)
+    accept_eula(nexus_url, nexus_user, nexus_pass)
     enable_anonymous(nexus_url, nexus_user, nexus_pass)
+    enable_docker_realm(nexus_url, nexus_user, nexus_pass)
+    create_oci_repo(nexus_url, nexus_user, nexus_pass, oci_repo, oci_port)
 
     # Repos needing Lightwell Network credentials we may not have yet. The
     # tenant still has to deploy, so skip them (and their webhooks below) and

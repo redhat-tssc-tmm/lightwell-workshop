@@ -211,6 +211,16 @@ Copy and fill for each new decision:
 | **Decision** | Remove the `rhtpa-operator` subscription and shared `TrustedProfileAnalyzer` CR from the `rhads` cluster chart. Deploy TPA per tenant using the upstream `redhat-trusted-profile-analyzer` Helm chart (from `charts.openshift.io`) as a nested ArgoCD Application rendered by the tenant chart. Each tenant gets: namespace `tpa-{guid}` with its own PostgreSQL, S3 bucket (ObjectBucketClaim via NooBaa), TPA server, importer, and a short-URL Route (`tpa-{guid}.{domain}`). RHDA backend is optional (`tpa.rhda.enabled`). Keycloak OIDC clients (`tpa-frontend` public, `tpa-cli` confidential) are created once at cluster level in the `sso` realm by `job-tpa-keycloak-setup.yaml`. All tenants share these clients; data isolation comes from each tenant having its own TPA server and database. Default client scopes grant `create:document`, `read:document`, `update:document` to all users; `delete:document` is optional and requires the `tpa-admin` realm role. The `tpa-cli` client secret is stored in the `keycloak` namespace and copied into each tenant's namespace by a per-tenant OIDC setup Job. |
 | **Consequences** | Each tenant consumes ~3 CPU, 12Gi memory (TPA server + PostgreSQL + importer), plus ~1 CPU, 2Gi if RHDA is enabled. Clusters must be sized for N × these resources. The `rhtpa-operator` is no longer installed — TPA is deployed purely via Helm. The old `trusted-profile-analyzer` Keycloak realm and its dot-separated scopes (`create.sbom`, etc.) are replaced by the shared `sso` realm with colon-separated scopes (`create:document`, etc.). Existing AgnosticV catalog items that create users in the old realm need updating. The per-tenant TPA templates live in `bootstrap-tenant/templates/tpa/` (not a Helm subchart) because Helm subchart value scoping prevents the parent's `guid` from reaching the subchart without changes to AgnosticV. A demo dataset is uploaded per tenant via a Job at sync-wave 3 using `tpa-cli` client credentials. |
 
+## ADR-019 — OCI container registry in per-tenant Nexus
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-13 |
+| **Title** | Add OCI hosted repository to per-tenant Nexus for container image storage |
+| **Context** | Tekton build pipelines need to push container images to a per-tenant registry. Nexus already runs per tenant for Maven artifacts. Adding OCI support to Nexus keeps all build artifacts (JARs + images) in one tool per tenant, avoids deploying a separate registry, and gives each tenant isolated image storage. |
+| **Decision** | Add OCI registry support to the existing per-tenant Nexus: a Docker Bearer Token Realm, an OCI hosted repository (`oci`) on port 5000, a dedicated OCI Route (`nexus-oci-{guid}.{domain}`), and a short-URL Route for the Nexus UI (`nexus-{guid}.{domain}`). The `nexus-reconcile.py` script creates the OCI repo and enables the token realm idempotently. Storage increased from 20Gi to 50Gi. Authentication: anonymous read, admin credentials for push (reusing the existing Nexus admin Secret). Nexus bumped from 3.76.1 to 3.96.4-ubi for native OCI 1.1 referrers support (needed for Tekton Chains attestation storage without tag-based fallback). The reconcile script accepts the Community Edition EULA automatically (required since 3.77). |
+| **Consequences** | Each tenant's Nexus PVC grows from 20Gi to 50Gi. Existing tenants keep the old PVC size unless manually expanded. The OCI Route uses edge TLS termination — pipeline `buildah` tasks must set `TLSVERIFY=false` or trust the cluster CA. The port name `oci-http` replaces the old `http` on the StatefulSet/Service (existing port 8081 renamed to `nexus-http`). Nexus 3.77+ (Community Edition) has a 40,000-component limit and 100,000 requests/day — sufficient for workshop use. The EULA must be accepted before any API calls work; the reconcile script handles this idempotently. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -237,3 +247,4 @@ Copy and fill for each new decision:
 | Spec outlines still say Artifactory… | _(content debt, not an ADR)_ |
 | TAS + Tekton Chains keyless signing | ADR-017 |
 | Per-tenant TPA via Helm chart | ADR-018 |
+| OCI container registry in Nexus | ADR-019 |

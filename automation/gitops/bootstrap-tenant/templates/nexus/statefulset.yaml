@@ -46,7 +46,9 @@ spec:
               value: "-Xms1g -Xmx2g -XX:MaxDirectMemorySize=2g -Dnexus.security.randompassword=false"
           ports:
             - containerPort: 8081
-              name: http
+              name: nexus-http
+            - containerPort: {{ .Values.nexus.oci.port | default 5000 }}
+              name: oci-http
           volumeMounts:
             - name: nexus-data
               mountPath: /nexus-data

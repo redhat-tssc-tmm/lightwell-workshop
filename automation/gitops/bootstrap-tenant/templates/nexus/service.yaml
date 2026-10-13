@@ -11,6 +11,9 @@ spec:
   selector:
     app: nexus
   ports:
-    - name: http
+    - name: nexus-http
       port: 8081
       targetPort: 8081
+    - name: oci-http
+      port: {{ .Values.nexus.oci.port | default 5000 }}
+      targetPort: {{ .Values.nexus.oci.port | default 5000 }}

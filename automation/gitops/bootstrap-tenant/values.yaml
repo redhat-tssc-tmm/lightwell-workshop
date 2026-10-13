@@ -113,8 +113,11 @@ limitRange:
     memory: 256Mi
 
 nexus:
-  image: sonatype/nexus3:3.76.1
-  storageSize: 20Gi
+  image: sonatype/nexus3:3.96.4-ubi
+  storageSize: 50Gi
+  oci:
+    port: 5000
+    repoName: oci
   adminPassword: ""
   repoValidated: ""
   repoRemediated: ""

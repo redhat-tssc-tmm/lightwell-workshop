@@ -58,6 +58,10 @@ spec:
                   key: SKIP_WEBHOOK_SETUP
             - name: NEXUS_REPOSITORIES_FILE
               value: /config/lightwell-repositories.json
+            - name: NEXUS_OCI_REPO_NAME
+              value: {{ .Values.nexus.oci.repoName | default "oci" | quote }}
+            - name: NEXUS_OCI_PORT
+              value: {{ .Values.nexus.oci.port | default 5000 | quote }}
           volumeMounts:
             - mountPath: /config
               name: repos-config
