@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-12 (per-tenant TPA via Helm chart)
+Last updated: 2026-10-13 (OCI container registry added to per-tenant Nexus)
 
 ## Where the pieces live
 
@@ -102,6 +102,13 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   a sync hook Job that patches the realm `displayName`.
 - **BuildConfig `triggers: []` drift** fixed — OpenShift strips empty trigger
   arrays, causing perpetual OutOfSync.
+- **OCI container registry in per-tenant Nexus.** Added Docker Bearer Token
+  Realm, OCI hosted repository (`oci`) on port 5000, OCI Route
+  (`nexus-oci-{guid}.{domain}`), and short-URL Route for the UI
+  (`nexus-{guid}.{domain}`). Storage increased from 20Gi to 50Gi.
+  `nexus-reconcile.py` creates the OCI repo and enables the token realm
+  idempotently. Anonymous read, admin push.
+  → [ADR-019](ADR.md#adr-019--oci-container-registry-in-per-tenant-nexus)
 - **Per-tenant TPA** via upstream Helm chart. Removed the shared `rhtpa-operator`
   and `TrustedProfileAnalyzer` CR from `cluster/rhads`. Each tenant gets a
   `tpa-{guid}` namespace with PostgreSQL, S3 (ObjectBucketClaim), TPA server,

@@ -114,7 +114,10 @@ limitRange:
 
 nexus:
   image: sonatype/nexus3:3.76.1
-  storageSize: 20Gi
+  storageSize: 50Gi
+  oci:
+    port: 5000
+    repoName: oci
   adminPassword: ""
   repoValidated: ""
   repoRemediated: ""

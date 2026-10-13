@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nexus-short
+  namespace: {{ include "bootstrap-tenant.nexusNamespace" . }}
+  labels:
+    app: nexus
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  host: nexus-{{ .Values.guid }}.{{ .Values.deployer.domain }}
+  to:
+    kind: Service
+    name: nexus
+  port:
+    targetPort: nexus-http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
