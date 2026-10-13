@@ -108,6 +108,11 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   (`nexus-{guid}.{domain}`). Storage increased from 20Gi to 50Gi.
   `nexus-reconcile.py` creates the OCI repo and enables the token realm
   idempotently. Anonymous read, admin push.
+  Nexus bumped from 3.76.1 to **3.96.4-ubi** for native OCI 1.1 referrers
+  (Tekton Chains stores attestations without tag-based fallback). Community
+  Edition EULA is accepted automatically by the reconcile script (required
+  since 3.77). Verified end-to-end on fresh tenant `t3st1`: OCI repo
+  created, image push + catalog working, no manual intervention.
   → [ADR-019](ADR.md#adr-019--oci-container-registry-in-per-tenant-nexus)
 - **Per-tenant TPA** via upstream Helm chart. Removed the shared `rhtpa-operator`
   and `TrustedProfileAnalyzer` CR from `cluster/rhads`. Each tenant gets a
