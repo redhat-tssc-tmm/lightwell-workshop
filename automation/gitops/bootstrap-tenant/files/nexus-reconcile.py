@@ -118,6 +118,31 @@ def create_oci_repo(
         sys.exit(1)
 
 
+def update_maven_public_group(base: str, user: str, password: str) -> None:
+    url = f"{base.rstrip('/')}/service/rest/v1/repositories/maven/group/maven-public"
+    code, data = request("GET", url, user, password)
+    if code != 200 or not isinstance(data, dict):
+        print(f"WARNING: could not read maven-public group (HTTP {code})")
+        return
+    desired_members = [
+        "lightwell-remediated",
+        "lightwell-validated",
+        "maven-releases",
+        "maven-snapshots",
+        "maven-central",
+    ]
+    current_members = data.get("group", {}).get("memberNames", [])
+    if current_members == desired_members:
+        print("maven-public group already configured")
+        return
+    data["group"]["memberNames"] = desired_members
+    code, _ = request("PUT", url, user, password, data)
+    if code in (200, 204):
+        print(f"maven-public group updated: {desired_members}")
+    else:
+        print(f"WARNING: maven-public group update returned {code}")
+
+
 def accept_eula(base: str, user: str, password: str) -> None:
     url = f"{base.rstrip('/')}/service/rest/v1/system/eula"
     code, data = request("GET", url, user, password)
@@ -384,6 +409,19 @@ def main() -> None:
     enable_anonymous(nexus_url, nexus_user, nexus_pass)
     enable_docker_realm(nexus_url, nexus_user, nexus_pass)
     create_oci_repo(nexus_url, nexus_user, nexus_pass, oci_repo, oci_port)
+    create_hosted(nexus_url, nexus_user, nexus_pass, {
+        "name": "lightwell-remediated",
+        "write_policy": "ALLOW",
+        "version_policy": "RELEASE",
+        "layout_policy": "STRICT",
+    })
+    create_hosted(nexus_url, nexus_user, nexus_pass, {
+        "name": "lightwell-validated",
+        "write_policy": "ALLOW",
+        "version_policy": "RELEASE",
+        "layout_policy": "STRICT",
+    })
+    update_maven_public_group(nexus_url, nexus_user, nexus_pass)
 
     # Repos needing Lightwell Network credentials we may not have yet. The
     # tenant still has to deploy, so skip them (and their webhooks below) and

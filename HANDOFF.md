@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-14 (PaC build infrastructure added to tenant chart)
+Last updated: 2026-10-14 (Maven via Nexus group + Lightwell hosted repos)
 
 ## Where the pieces live
 
@@ -108,9 +108,18 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   credentials, TPA OIDC). Repository CRs pass tenant-specific params
   (`image-registry`, `image-name`, `tpa-url`, `issuer-url`) so `.tekton/`
   PipelineRun YAML is identical across tenants. Toggle: `build.enabled`.
-  **Still needed:** `.tekton/` + `Containerfile` in the 3 source repos
-  (`redhat-ads-tech/`) — without these PaC has nothing to run.
+  `.tekton/` + `Containerfile` added to all 3 source repos. Pipeline
+  verified end-to-end: git-clone → maven → buildah → SBOM → TPA upload.
   → [ADR-020](ADR.md#adr-020--pipelines-as-code-for-per-tenant-build-pipelines)
+- **Maven builds via Nexus group with Lightwell hosted repos.** Removed
+  redundant `maven-central-{guid}` and `maven-releases-{guid}` (Nexus is
+  already per-tenant). Created `lightwell-remediated` and `lightwell-validated`
+  hosted repos (aligned with official Lightwell Network naming). Updated
+  `maven-public` group to include them (search order: lightwell repos first,
+  then defaults). Pipeline Maven task uses `MAVEN_MIRROR_URL` pointing at the
+  group URL. Lightwell proxy repos in the ConfigMap stay untouched (EDA/OpenCode
+  need them). Hosted repos need seeding with `-rhlw-*` artifacts separately.
+  → [ADR-021](ADR.md#adr-021--maven-builds-via-nexus-group-with-lightwell-hosted-repos)
 - **OCI container registry in per-tenant Nexus.** Added Docker Bearer Token
   Realm, OCI hosted repository (`oci`) on port 5000, OCI Route
   (`nexus-oci-{guid}.{domain}`), and short-URL Route for the UI
