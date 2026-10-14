@@ -23,6 +23,9 @@ rules:
   - apiGroups: ["operator.tekton.dev"]
     resources: ["tektoninstallersets"]
     verbs: ["get", "list", "update"]
+  - apiGroups: ["operator.openshift.io"]
+    resources: ["consoles"]
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -144,6 +147,11 @@ spec:
               " | oc replace -f - 2>/dev/null
                 echo "Chains InstallerSet attestation format updated"
               fi
+
+              echo "Enabling Pipelines console plugin..."
+              oc patch console.operator.openshift.io cluster --type merge \
+                -p '{"spec":{"plugins":["odf-console","monitoring-plugin","networking-console-plugin","pipelines-console-plugin","gitops-plugin"]}}' 2>/dev/null || true
+              echo "Console plugins enabled"
 
               echo "TektonConfig patched"
           resources:
