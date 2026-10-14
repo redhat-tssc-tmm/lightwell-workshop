@@ -1,0 +1,124 @@
+{{- if .Values.build.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: build-setup
+  namespace: build-{{ .Values.guid }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: build-setup-gitlab-reader-{{ .Values.guid }}
+  namespace: {{ .Values.gitlab.namespace | default "gitlab" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["root-user-personal-token"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: build-setup-gitlab-reader-{{ .Values.guid }}
+  namespace: {{ .Values.gitlab.namespace | default "gitlab" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: build-setup-gitlab-reader-{{ .Values.guid }}
+subjects:
+  - kind: ServiceAccount
+    name: build-setup
+    namespace: build-{{ .Values.guid }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: build-setup-keycloak-reader-{{ .Values.guid }}
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["tpa-oidc-client-secret"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: build-setup-keycloak-reader-{{ .Values.guid }}
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: build-setup-keycloak-reader-{{ .Values.guid }}
+subjects:
+  - kind: ServiceAccount
+    name: build-setup
+    namespace: build-{{ .Values.guid }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: build-setup-nexus-reader-{{ .Values.guid }}
+  namespace: {{ include "bootstrap-tenant.nexusNamespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["nexus-admin-secret"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: build-setup-nexus-reader-{{ .Values.guid }}
+  namespace: {{ include "bootstrap-tenant.nexusNamespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: build-setup-nexus-reader-{{ .Values.guid }}
+subjects:
+  - kind: ServiceAccount
+    name: build-setup
+    namespace: build-{{ .Values.guid }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: build-setup-writer
+  namespace: build-{{ .Values.guid }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: build-setup-writer
+  namespace: build-{{ .Values.guid }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: build-setup-writer
+subjects:
+  - kind: ServiceAccount
+    name: build-setup
+    namespace: build-{{ .Values.guid }}
+{{- end }}

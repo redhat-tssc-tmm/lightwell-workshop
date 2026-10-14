@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-13 (OCI container registry added to per-tenant Nexus)
+Last updated: 2026-10-14 (PaC build infrastructure added to tenant chart)
 
 ## Where the pieces live
 
@@ -102,6 +102,15 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   a sync hook Job that patches the realm `displayName`.
 - **BuildConfig `triggers: []` drift** fixed — OpenShift strips empty trigger
   arrays, causing perpetual OutOfSync.
+- **PaC build infrastructure** per tenant. `build-{guid}` namespace with 3 PaC
+  Repository CRs (one per app from `gitlab.appSeeds`), GitLab push webhooks
+  pointing at the PaC controller, and secrets (GitLab PAT, Nexus push
+  credentials, TPA OIDC). Repository CRs pass tenant-specific params
+  (`image-registry`, `image-name`, `tpa-url`, `issuer-url`) so `.tekton/`
+  PipelineRun YAML is identical across tenants. Toggle: `build.enabled`.
+  **Still needed:** `.tekton/` + `Containerfile` in the 3 source repos
+  (`redhat-ads-tech/`) — without these PaC has nothing to run.
+  → [ADR-020](ADR.md#adr-020--pipelines-as-code-for-per-tenant-build-pipelines)
 - **OCI container registry in per-tenant Nexus.** Added Docker Bearer Token
   Realm, OCI hosted repository (`oci`) on port 5000, OCI Route
   (`nexus-oci-{guid}.{domain}`), and short-URL Route for the UI

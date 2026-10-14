@@ -112,6 +112,10 @@ limitRange:
     cpu: 250m
     memory: 256Mi
 
+build:
+  enabled: true
+  webhookSecret: ""
+
 nexus:
   image: sonatype/nexus3:3.96.4-ubi
   storageSize: 50Gi

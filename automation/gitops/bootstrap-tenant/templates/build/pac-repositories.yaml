@@ -1,0 +1,34 @@
+{{- if .Values.build.enabled }}
+{{- $guid := .Values.guid }}
+{{- $domain := .Values.deployer.domain }}
+{{- $gitlabNs := .Values.gitlab.namespace | default "gitlab" }}
+{{- $group := include "bootstrap-tenant.gitlabGroup" . }}
+{{- range .Values.gitlab.appSeeds }}
+---
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  name: {{ .name }}
+  namespace: build-{{ $guid }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  url: https://gitlab-{{ $gitlabNs }}.{{ $domain }}/{{ $group }}/{{ .name }}
+  git_provider:
+    secret:
+      name: gitlab-pac-token
+      key: token
+    webhook_secret:
+      name: gitlab-pac-webhook-secret
+      key: webhook-secret
+  params:
+    - name: image-registry
+      value: nexus-oci-{{ $guid }}.{{ $domain }}
+    - name: image-name
+      value: oci/{{ .name }}
+    - name: tpa-url
+      value: https://tpa-{{ $guid }}.{{ $domain }}
+    - name: issuer-url
+      value: https://sso.{{ $domain }}/realms/sso
+{{- end }}
+{{- end }}
