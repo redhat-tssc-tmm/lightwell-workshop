@@ -15,6 +15,7 @@ metadata:
 spec:
   url: https://gitlab-{{ $gitlabNs }}.{{ $domain }}/{{ $group }}/{{ .name }}
   git_provider:
+    url: https://gitlab-{{ $gitlabNs }}.{{ $domain }}
     secret:
       name: gitlab-pac-token
       key: token
