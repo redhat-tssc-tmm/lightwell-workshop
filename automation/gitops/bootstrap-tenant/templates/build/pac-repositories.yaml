@@ -31,6 +31,8 @@ spec:
       value: https://tpa-{{ $guid }}.{{ $domain }}
     - name: issuer-url
       value: https://sso.{{ $domain }}/realms/sso
+    - name: tpa-internal-url
+      value: https://server.tpa-{{ $guid }}.svc:443
     - name: maven-mirror-url
       value: http://nexus.lightwell-nexus-{{ $guid }}.svc:8081/repository/maven-public
 {{- end }}
