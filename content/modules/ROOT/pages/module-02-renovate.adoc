@@ -186,7 +186,7 @@ Look for entries showing:
 * `"newVersion"` containing `.rhlw-00001` — the Lightwell remediated version
 * `"prTitle"` showing the `[Lightwell]` prefix
 
-You can also browse run history and logs in the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate operator web UI^] (no login required).
+You can also browse run history and logs in the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate operator web UI^] (no login required). The UI shows all tenants' runs — type `{guid}` into the search box to filter to yours.
 
 == Reviewing and Approving the MR
 
