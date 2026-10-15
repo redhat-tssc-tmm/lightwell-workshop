@@ -80,7 +80,7 @@ spec:
           {
             "matchManagers": ["custom.regex"],
             "matchDatasources": ["maven"],
-            "registryUrls": ["https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}/repository/lightwell-java-remediated"]
+            "registryUrls": ["https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}/repository/lightwell-remediated"]
           }
         ]
       }
@@ -98,7 +98,7 @@ The RenovateJob will run a *discovery* phase first (finding repositories), then 
 
 == Injecting a Fake Remediation
 
-Now simulate a new Lightwell remediation arriving. You will upload a remediated version of `spring-cloud-starter-netflix-hystrix` (one of the vulnerable dependencies in `report-generator-app`) into your Nexus `lightwell-java-remediated` repository.
+Now simulate a new Lightwell remediation arriving. You will upload a remediated version of `spring-cloud-starter-netflix-hystrix` (one of the vulnerable dependencies in `report-generator-app`) into your Nexus `lightwell-remediated` repository.
 
 First, create the Maven metadata:
 
@@ -127,12 +127,12 @@ echo "remediated" > /tmp/placeholder.txt && jar cf /tmp/hystrix-fix.jar /tmp/pla
 
 # Upload POM
 curl -sk -u "admin:${NEXUS_PASS}" -X PUT \
-  "https://${NEXUS_HOST}/repository/lightwell-java-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/2.2.10.RELEASE.rhlw-00001/spring-cloud-starter-netflix-hystrix-2.2.10.RELEASE.rhlw-00001.pom" \
+  "https://${NEXUS_HOST}/repository/lightwell-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/2.2.10.RELEASE.rhlw-00001/spring-cloud-starter-netflix-hystrix-2.2.10.RELEASE.rhlw-00001.pom" \
   -H "Content-Type: application/xml" --data-binary @/tmp/hystrix-fix.pom
 
 # Upload JAR
 curl -sk -u "admin:${NEXUS_PASS}" -X PUT \
-  "https://${NEXUS_HOST}/repository/lightwell-java-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/2.2.10.RELEASE.rhlw-00001/spring-cloud-starter-netflix-hystrix-2.2.10.RELEASE.rhlw-00001.jar" \
+  "https://${NEXUS_HOST}/repository/lightwell-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/2.2.10.RELEASE.rhlw-00001/spring-cloud-starter-netflix-hystrix-2.2.10.RELEASE.rhlw-00001.jar" \
   -H "Content-Type: application/java-archive" --data-binary @/tmp/hystrix-fix.jar
 
 # Upload maven-metadata.xml
@@ -152,7 +152,7 @@ cat > /tmp/hystrix-metadata.xml <<'METAEOF'
 METAEOF
 
 curl -sk -u "admin:${NEXUS_PASS}" -X PUT \
-  "https://${NEXUS_HOST}/repository/lightwell-java-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/maven-metadata.xml" \
+  "https://${NEXUS_HOST}/repository/lightwell-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/maven-metadata.xml" \
   -H "Content-Type: application/xml" --data-binary @/tmp/hystrix-metadata.xml
 
 echo "Remediation uploaded to Nexus."
