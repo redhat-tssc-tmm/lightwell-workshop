@@ -105,6 +105,9 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "create", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -117,6 +120,35 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: build-setup-writer
+subjects:
+  - kind: ServiceAccount
+    name: build-setup
+    namespace: build-{{ .Values.guid }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: build-setup-pull-secret-reader-{{ .Values.guid }}
+  namespace: openshift-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["pull-secret"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: build-setup-pull-secret-reader-{{ .Values.guid }}
+  namespace: openshift-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: build-setup-pull-secret-reader-{{ .Values.guid }}
 subjects:
   - kind: ServiceAccount
     name: build-setup
