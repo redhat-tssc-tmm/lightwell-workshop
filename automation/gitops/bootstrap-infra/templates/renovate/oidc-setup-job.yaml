@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: renovate-oidc-setup
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: renovate-oidc-setup
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["keycloak-initial-admin"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: renovate-oidc-setup-writer
+  namespace: renovate-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: renovate-oidc-setup
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+subjects:
+  - kind: ServiceAccount
+    name: renovate-oidc-setup
+    namespace: openshift-gitops
+roleRef:
+  kind: Role
+  name: renovate-oidc-setup
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: renovate-oidc-setup-writer
+  namespace: renovate-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+subjects:
+  - kind: ServiceAccount
+    name: renovate-oidc-setup
+    namespace: openshift-gitops
+roleRef:
+  kind: Role
+  name: renovate-oidc-setup-writer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: renovate-oidc-setup
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: renovate-oidc-setup
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: {{ .Values.jobAnsibleImage }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              SSO_URL="https://keycloak.keycloak.svc:8443"
+              REALM="sso"
+              CLIENT_ID="renovate-ui"
+              REDIRECT_URL="https://renovate-operator-renovate-operator.{{ .Values.deployer.domain }}/*"
+              WEB_ORIGIN="https://renovate-operator-renovate-operator.{{ .Values.deployer.domain }}"
+              SECRET_NS="renovate-operator"
+              SECRET_NAME="renovate-oidc-secret"
+
+              ADMIN_USER=$(oc get secret keycloak-initial-admin -n keycloak -o jsonpath='{.data.username}' | base64 -d)
+              ADMIN_PASS=$(oc get secret keycloak-initial-admin -n keycloak -o jsonpath='{.data.password}' | base64 -d)
+
+              echo "Waiting for Keycloak..."
+              for i in $(seq 1 60); do
+                TOKEN=$(curl -sk "${SSO_URL}/realms/master/protocol/openid-connect/token" \
+                  -d "grant_type=password&client_id=admin-cli&username=${ADMIN_USER}&password=${ADMIN_PASS}" | \
+                  python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true)
+                if [ -n "${TOKEN}" ]; then break; fi
+                echo "  Attempt ${i}/60 — Keycloak not ready (10s)..."
+                sleep 10
+              done
+              if [ -z "${TOKEN}" ]; then echo "ERROR: could not get Keycloak admin token"; exit 1; fi
+              echo "Keycloak ready"
+
+              # Check if client exists
+              EXISTING=$(curl -sk -H "Authorization: Bearer ${TOKEN}" \
+                "${SSO_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}" | \
+                python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || true)
+
+              if [ -n "${EXISTING}" ]; then
+                echo "OIDC client '${CLIENT_ID}' already exists (${EXISTING})"
+                # Get client secret
+                CLIENT_SECRET=$(curl -sk -H "Authorization: Bearer ${TOKEN}" \
+                  "${SSO_URL}/admin/realms/${REALM}/clients/${EXISTING}/client-secret" | \
+                  python3 -c "import json,sys; print(json.load(sys.stdin).get('value',''))")
+              else
+                echo "Creating OIDC client '${CLIENT_ID}'..."
+                curl -sk -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
+                  -X POST "${SSO_URL}/admin/realms/${REALM}/clients" \
+                  -d "{
+                    \"clientId\": \"${CLIENT_ID}\",
+                    \"enabled\": true,
+                    \"publicClient\": false,
+                    \"redirectUris\": [\"${REDIRECT_URL}\"],
+                    \"webOrigins\": [\"${WEB_ORIGIN}\"],
+                    \"protocol\": \"openid-connect\",
+                    \"standardFlowEnabled\": true,
+                    \"directAccessGrantsEnabled\": false
+                  }"
+                EXISTING=$(curl -sk -H "Authorization: Bearer ${TOKEN}" \
+                  "${SSO_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}" | \
+                  python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['id'] if d else '')")
+                CLIENT_SECRET=$(curl -sk -H "Authorization: Bearer ${TOKEN}" \
+                  "${SSO_URL}/admin/realms/${REALM}/clients/${EXISTING}/client-secret" | \
+                  python3 -c "import json,sys; print(json.load(sys.stdin).get('value',''))")
+                echo "OIDC client created"
+              fi
+
+              if [ -z "${CLIENT_SECRET}" ]; then
+                echo "ERROR: could not retrieve client secret"
+                exit 1
+              fi
+
+              oc create secret generic "${SECRET_NAME}" -n "${SECRET_NS}" \
+                --from-literal=client-secret="${CLIENT_SECRET}" \
+                --dry-run=client -o yaml | oc apply -f -
+              echo "OIDC secret stored in ${SECRET_NS}/${SECRET_NAME}"
