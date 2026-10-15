@@ -61,7 +61,7 @@ spec:
   image: ghcr.io/renovatebot/renovate:44.145.1
   access:
     adminUsers:
-      - "{user}"
+      - "{user}@demo.redhat.com"
   renovateConfig:
     fileName: config.json
     inline: |
