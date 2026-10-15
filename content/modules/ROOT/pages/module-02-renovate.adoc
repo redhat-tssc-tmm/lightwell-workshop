@@ -59,6 +59,9 @@ spec:
   discoveryFilters:
     - "acme-{guid}/report-generator-app"
   image: ghcr.io/renovatebot/renovate:44.145.1
+  access:
+    adminUsers:
+      - "{user}"
   renovateConfig:
     fileName: config.json
     inline: |
