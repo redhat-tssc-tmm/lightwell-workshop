@@ -109,15 +109,30 @@ def ensure_controller_playbooks(
             if inv.get("organization") == controller_org_id:
                 inventory_id = int(inv["id"])
                 break
-        if not inventory_id:
-            for inv in invs.get("results", []):
-                if inv.get("name") == "Demo Inventory":
-                    inventory_id = int(inv["id"])
-                    break
-        if not inventory_id and invs.get("results"):
-            inventory_id = int(invs["results"][0]["id"])
     if not inventory_id:
-        inventory_id = 1
+        print(f"Creating inventory 'SDLC Inventory' in org {controller_org_id}...")
+        inv_code, inv_resp = aap_request(
+            "POST",
+            "/api/controller/v2/inventories/",
+            user,
+            password,
+            base,
+            body={"name": "SDLC Inventory", "organization": controller_org_id},
+        )
+        if inv_code in (200, 201) and isinstance(inv_resp, dict):
+            inventory_id = int(inv_resp["id"])
+            host_code, _ = aap_request(
+                "POST",
+                f"/api/controller/v2/inventories/{inventory_id}/hosts/",
+                user,
+                password,
+                base,
+                body={"name": "localhost", "variables": "ansible_connection: local"},
+            )
+            print(f"Inventory created (id={inventory_id}, localhost host added)")
+        else:
+            print(f"ERROR: could not create inventory: {inv_code} {inv_resp}")
+            inventory_id = 1
 
     code, projects = aap_request(
         "GET",
