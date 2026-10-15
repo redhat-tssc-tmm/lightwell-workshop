@@ -66,8 +66,10 @@ spec:
               AAP_HOST="aap-{{ .Values.aap.namespace | default "aap" }}.{{ .Values.deployer.domain }}"
               ALLOW="[\"${AAP_HOST}\"]"
               for d in automation-orchestrator-backend automation-orchestrator-worker automation-orchestrator-background-worker; do
-                for i in $(seq 1 60); do
+                echo "Waiting for deployment ${d}..."
+                for i in $(seq 1 120); do
                   if oc get deploy "$d" -n "$NS" >/dev/null 2>&1; then break; fi
+                  echo "  Attempt ${i}/120 — ${d} not yet available (5s)..."
                   sleep 5
                 done
                 oc set env "deploy/${d}" -n "$NS" "APP_INTEGRATION_URL_ALLOWED_HOSTS=${ALLOW}"

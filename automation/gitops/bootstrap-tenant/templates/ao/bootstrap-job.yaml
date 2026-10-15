@@ -36,9 +36,11 @@ spec:
             - |
               set -euo pipefail
               AO_NS="{{ .Values.sdlc.orchestrator.namespace | default "automation-orchestrator" }}"
-              for i in $(seq 1 60); do
+              echo "Waiting for Automation Orchestrator route..."
+              for i in $(seq 1 120); do
                 ROUTE_HOST=$(oc get route -n "${AO_NS}" automation-orchestrator -o jsonpath='{.spec.host}' 2>/dev/null || true)
                 if [ -n "${ROUTE_HOST}" ]; then break; fi
+                echo "  Attempt ${i}/120 — route not yet available (10s)..."
                 sleep 10
               done
               export AO_BASE_URL="{{ include "bootstrap-tenant.aoBaseUrl" . }}"

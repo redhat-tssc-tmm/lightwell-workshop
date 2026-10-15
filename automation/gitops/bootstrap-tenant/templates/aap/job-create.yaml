@@ -26,20 +26,26 @@ spec:
               USERNAME="{{ .Values.username }}"
               PASSWORD="{{ .Values.password }}"
 
-              for i in $(seq 1 60); do
+              echo "Waiting for AAP Gateway route..."
+              for i in $(seq 1 120); do
                 ROUTE_HOST=$(oc get route -n "${AAP_NS}" -l app.kubernetes.io/managed-by=aap-operator -o jsonpath='{.items[0].spec.host}' 2>/dev/null)
                 if [ -n "${ROUTE_HOST}" ]; then GATEWAY_HOST="https://${ROUTE_HOST}"; break; fi
+                echo "  Attempt ${i}/120 — route not yet available (10s)..."
                 sleep 10
               done
               if [ -z "${GATEWAY_HOST}" ]; then echo "ERROR: Gateway route not found"; exit 1; fi
+              echo "AAP Gateway: ${GATEWAY_HOST}"
 
               ADMIN_PASS=$(oc get secret aap-admin-password -n "${AAP_NS}" -o jsonpath='{.data.password}' | base64 -d)
-              for i in $(seq 1 60); do
+              echo "Waiting for Controller API..."
+              for i in $(seq 1 120); do
                 STATUS=$(curl -sk -o /dev/null -w '%{http_code}' -u "admin:${ADMIN_PASS}" "${GATEWAY_HOST}/api/controller/v2/ping/" 2>/dev/null || true)
                 if [ "${STATUS}" = "200" ]; then break; fi
+                echo "  Attempt ${i}/120 — API returned ${STATUS} (10s)..."
                 sleep 10
               done
               if [ "${STATUS}" != "200" ]; then echo "ERROR: Controller API not ready"; exit 1; fi
+              echo "Controller API ready"
 
               curl -sk -u "admin:${ADMIN_PASS}" -H "Content-Type: application/json" \
                 -X POST "${GATEWAY_HOST}/api/gateway/v1/organizations/" -d "{\"name\":\"${ORG}\"}" || true

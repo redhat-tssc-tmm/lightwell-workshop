@@ -33,12 +33,15 @@ spec:
             - |
               set -e
               AAP_NS="{{ .Values.aap.namespace }}"
-              for i in $(seq 1 60); do
+              echo "Waiting for AAP Gateway route..."
+              for i in $(seq 1 120); do
                 ROUTE_HOST=$(oc get route -n "${AAP_NS}" -l app.kubernetes.io/managed-by=aap-operator -o jsonpath='{.items[0].spec.host}' 2>/dev/null)
                 if [ -n "${ROUTE_HOST}" ]; then export AAP_CONTROLLER_URL="https://${ROUTE_HOST}"; break; fi
+                echo "  Attempt ${i}/120 — route not yet available (10s)..."
                 sleep 10
               done
               if [ -z "${AAP_CONTROLLER_URL:-}" ]; then echo "ERROR: AAP gateway route not found"; exit 1; fi
+              echo "AAP Gateway: ${AAP_CONTROLLER_URL}"
               export AAP_USERNAME=admin
               export AAP_PASSWORD=$(oc get secret aap-admin-password -n "${AAP_NS}" -o jsonpath='{.data.password}' | base64 -d)
               export TPA_UPLOADER_PASSWORD="{{ .Values.password }}"
