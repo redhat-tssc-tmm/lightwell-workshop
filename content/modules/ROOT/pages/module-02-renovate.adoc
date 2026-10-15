@@ -1,6 +1,11 @@
 = Module 2: Quick Win — Deterministic Remediation with Renovate
 :navtitle: Module 2: Renovate (Path 1)
 
+[WARNING]
+====
+This module is a *work in progress*. Steps and screenshots may change before the final version.
+====
+
 *Duration:* 25 minutes
 
 This module walks through *Path 1* — the simplest way to automate Lightwell remediations. No AI, no orchestration. Renovate watches the Lightwell mirror in Nexus for new `.rhlw` versions and creates merge requests to bump your dependencies. Standard CI/CD handles the build and deploy.

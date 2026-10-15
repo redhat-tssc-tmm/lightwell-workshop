@@ -1,6 +1,11 @@
 = Module 3: Full Automation — AI-Driven Remediation
 :navtitle: Module 3: AI Remediation (Path 2)
 
+[WARNING]
+====
+This module is a *work in progress*. Steps and screenshots may change before the final version.
+====
+
 *Duration:* 30 minutes
 
 This module walks through *Path 2* — enterprise-grade automated remediation. An Ansible Orchestrator workflow receives the event, queries RHTPA to identify affected applications, dispatches AI agents to assess risk and generate merge requests, and maintains a ServiceNow ticket throughout. Low-risk changes are auto-approved; high-risk changes are flagged for your review.
