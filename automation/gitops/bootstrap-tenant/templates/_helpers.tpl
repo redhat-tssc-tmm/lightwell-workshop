@@ -130,6 +130,10 @@ remediation never runs. Default to the legacy rulebook unless AO is configured.
 {{- printf "snow-%s" .Values.guid -}}
 {{- end -}}
 
+{{- define "bootstrap-tenant.renovateNamespace" -}}
+{{- printf "%s-renovate" .Values.username -}}
+{{- end -}}
+
 {{- define "bootstrap-tenant.lightwellNetworkSecretName" -}}
 {{- .Values.nexus.lightwellNetwork.existingSecret | default "redhat-packages-credentials" -}}
 {{- end -}}

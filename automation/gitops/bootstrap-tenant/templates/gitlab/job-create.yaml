@@ -111,11 +111,11 @@ spec:
                 echo "renovate-bot PAT created successfully (expires ${PAT_EXPIRY})"
               fi
 
-              SDLC_NS="{{ include "bootstrap-tenant.sdlcNamespace" . }}"
-              oc create secret generic renovate-token -n "${SDLC_NS}" \
+              RENOVATE_NS="{{ include "bootstrap-tenant.renovateNamespace" . }}"
+              oc create secret generic renovate-token -n "${RENOVATE_NS}" \
                 --from-literal=RENOVATE_TOKEN="${RBOT_PAT}" \
                 --dry-run=client -o yaml | oc apply -f -
-              echo "renovate-token (renovate-bot PAT) stored in ${SDLC_NS}"
+              echo "renovate-token (renovate-bot PAT) stored in ${RENOVATE_NS}"
               {{- end }}
 
               seed_app() {
