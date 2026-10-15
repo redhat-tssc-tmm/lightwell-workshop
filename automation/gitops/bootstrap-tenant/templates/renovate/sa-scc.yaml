@@ -28,6 +28,47 @@ subjects:
   kind: User
   name: {{ .Values.username }}
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: renovatejob-manager
+  namespace: {{ include "bootstrap-tenant.renovateNamespace" . }}
+  labels:
+    app: renovate
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: ["renovate-operator.mogenius.com"]
+    resources: ["renovatejobs", "renovateprojects"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.username }}-renovatejob-manager
+  namespace: {{ include "bootstrap-tenant.renovateNamespace" . }}
+  labels:
+    app: renovate
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: renovatejob-manager
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: {{ .Values.username }}
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
