@@ -17,31 +17,16 @@ For Lightwell, the key is the *java-remediated* preset from `lightwell-experienc
 * Adds a custom regex manager that reads `pom.xml` and looks up versions in the Lightwell repository
 * Uses a versioning scheme that only bumps the `.rhlw-NNNNN` suffix — keeping the upstream version the same
 
-Open https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab] (username: `{user}`, password: `{password}`). Navigate to the `acme-{guid}/report-generator-app` repository and open `renovate.json`. You will see it extends the Lightwell preset and includes placeholder `hostRules` pointing at `nexus.example.com`:
+Open https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^] (username: `{user}`, password: `{password}`). Navigate to the `acme-{guid}/report-generator-app` repository and open `renovate.json`. You will see it extends the Lightwell `java-remediated` preset:
 
 [source,json]
 ----
 {
-  "extends": ["github>lightwell-experience/renovate-config:java-remediated"],
-  "hostRules": [
-    {
-      "matchHost": "nexus.example.com",
-      "hostType": "maven",
-      "username": "your-nexus-username",
-      "password": "your-nexus-token"
-    }
-  ],
-  "packageRules": [
-    {
-      "matchManagers": ["custom.regex"],
-      "matchDatasources": ["maven"],
-      "registryUrls": ["https://nexus.example.com/repository/lightwell-java-remediated"]
-    }
-  ]
+  "extends": ["github>lightwell-experience/renovate-config:java-remediated"]
 }
 ----
 
-Those placeholders are overridden at runtime by the RenovateJob configuration you are about to create — the real Nexus URL and credentials are injected there, not stored in the repository.
+This preset disables the standard Maven manager and replaces it with a custom regex manager that only looks for `.rhlw` versions in a Lightwell repository. The preset defaults to `packages.redhat.com` (the real Lightwell registry), but since we are using a simulated Lightwell repository in Nexus, the RenovateJob you create next will supply the tenant-specific Nexus URL and credentials at runtime — keeping them out of the source repository.
 
 == Creating the RenovateJob
 
@@ -77,7 +62,22 @@ spec:
         "requireConfig": "optional",
         "branchConcurrentLimit": 0,
         "prConcurrentLimit": 0,
-        "prHourlyLimit": 0
+        "prHourlyLimit": 0,
+        "hostRules": [
+          {
+            "matchHost": "nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}",
+            "hostType": "maven",
+            "username": "admin",
+            "password": "{password}"
+          }
+        ],
+        "packageRules": [
+          {
+            "matchManagers": ["custom.regex"],
+            "matchDatasources": ["maven"],
+            "registryUrls": ["https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}/repository/lightwell-java-remediated"]
+          }
+        ]
       }
 EOF
 ----

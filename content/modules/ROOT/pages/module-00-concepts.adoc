@@ -3,7 +3,7 @@
 
 *Duration:* 5 minutes
 
-Before diving into Lightwell's automation, this module establishes the foundational concepts that make the rest of the lab meaningful: what CVEs are and how severity is scored, what SBOMs are and why they matter, and why traditional patch workflows take weeks.
+Before diving into https://www.redhat.com/lightwell[Lightwell^]'s automation, this module establishes the foundational concepts that make the rest of the lab meaningful: what CVEs are and how severity is scored, what SBOMs are and why they matter, and why traditional patch workflows take weeks.
 
 There is nothing to run here. Read it through, then start Module 1.
 
@@ -85,7 +85,7 @@ This lab demonstrates two approaches to automating CVE remediation with Lightwel
 
 === Path 1: Quick Win — Deterministic Remediation
 
-The simplest path. No AI, no orchestration. Renovate watches your Lightwell mirror for new remediated versions and mechanically creates merge requests to bump your dependencies. Standard CI/CD handles the rest.
+The simplest path. No AI, no orchestration. https://docs.renovatebot.com/[Renovate^] (an open source dependency update tool) watches your Lightwell mirror for new remediated versions and mechanically creates merge requests to bump your dependencies. Standard CI/CD handles the rest.
 
 .Path 1: Lightwell + Renovate + CI/CD
 [mermaid]
