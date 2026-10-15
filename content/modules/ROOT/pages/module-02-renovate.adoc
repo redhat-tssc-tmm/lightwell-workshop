@@ -68,6 +68,8 @@ spec:
         "branchConcurrentLimit": 0,
         "prConcurrentLimit": 0,
         "prHourlyLimit": 0,
+        "commitMessagePrefix": "[Lightwell]",
+        "commitMessageExtra": "({{{newVersion}}})",
         "hostRules": [
           {
             "matchHost": "nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}",
