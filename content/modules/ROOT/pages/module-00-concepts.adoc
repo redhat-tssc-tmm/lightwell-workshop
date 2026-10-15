@@ -3,7 +3,7 @@
 
 *Duration:* 5 minutes
 
-Before diving into Lightwell's automation, this module establishes the foundational concepts that make the rest of the lab meaningful: what CVEs are and how severity is scored, what SBOMs and VEX documents are and how they enable precise impact analysis, and why traditional patch workflows take weeks.
+Before diving into Lightwell's automation, this module establishes the foundational concepts that make the rest of the lab meaningful: what CVEs are and how severity is scored, what SBOMs are and why they matter, and why traditional patch workflows take weeks.
 
 There is nothing to run here. Read it through, then start Module 1.
 
@@ -49,41 +49,15 @@ flowchart TD
   style App fill:#cfe2ff,stroke:#0d6efd
 ----
 
-In this lab, SBOMs are stored and queried in *Red Hat Trusted Profile Analyzer* (RHTPA), which you will use in Module 2 to turn a CVE identifier into a concrete list of affected applications.
+In this lab, SBOMs are stored and queried in *Red Hat Trusted Profile Analyzer* (RHTPA). In the deterministic path you will generate SBOMs as part of the build; in the AI-driven path, RHTPA actively identifies which of your applications are affected by a given CVE.
 
-=== VEX: the other half of the answer
+== A Note on VEX
 
-An SBOM tells you a component is *present*. It does not tell you whether the vulnerable code is *reachable*. That distinction is what *VEX* (Vulnerability Exploitability eXchange) carries.
+An SBOM tells you a component is *present*. It does not tell you whether the vulnerable code is actually *reachable*. That is the role of *VEX* (Vulnerability Exploitability eXchange) — a supplier's statement about whether a specific CVE genuinely affects a specific product.
 
-A VEX document is a supplier's statement about a specific CVE in a specific product, with one of four statuses:
+Red Hat and other vendors publish VEX documents for their products. Customers can also generate VEX for their own applications and feed it into their scanners, so that known-safe components are not continuously flagged as vulnerable.
 
-[cols="1,3",options="header"]
-|===
-| Status | Meaning
-| `affected` | The product is vulnerable. Remediation is required.
-| `not_affected` | The component is present, but the vulnerable code path cannot be reached.
-| `fixed` | The product contains a fix for this CVE.
-| `under_investigation` | Not yet determined.
-|===
-
-VEX is what prevents SBOM data from drowning you in false positives. Typically a large majority of component matches turn out to be `not_affected` — the vulnerable function is never invoked, or the component is only present at build time and not at runtime. Without VEX, every match becomes a ticket. With it, teams can act on the ones that genuinely matter.
-
-Red Hat publishes VEX documents for its products, and RHTPA consumes both SBOM and VEX data together. That is why Module 2 shows you not just "which applications contain this component" but "which applications are actually affected".
-
-.VEX turns a long list of component matches into a short list of real work.
-[mermaid]
-----
-flowchart LR
-  CVE["CVE published"] --> SBOM["SBOM query<br/>which builds contain it?"]
-  SBOM --> M["Component matches<br/>often dozens"]
-  M --> VEX{"VEX status?"}
-  VEX -->|not_affected| N["No action<br/>code path unreachable"]
-  VEX -->|fixed| F["Already patched"]
-  VEX -->|affected| A["Remediate<br/>the real work"]
-  style A fill:#f8d7da,stroke:#b02a37,stroke-width:2px
-  style N fill:#d1e7dd,stroke:#146c43
-  style F fill:#d1e7dd,stroke:#146c43
-----
+VEX is not directly demonstrated in this lab, but it is an important part of the broader supply chain story — it prevents SBOM data from drowning you in false positives.
 
 == The Traditional Patch Workflow — Why it Takes Weeks
 
@@ -101,63 +75,69 @@ Each step is individually reasonable. Together they routinely take *weeks* — a
 
 Three things make it slow, and Lightwell attacks all three:
 
-* *Finding what is affected is manual.* Solved by SBOM and VEX data in RHTPA — a query, not an investigation.
+* *Finding what is affected is manual.* Solved by SBOM data in RHTPA — a query, not an investigation.
 * *Sourcing a trustworthy fix is manual.* Solved by the *Lightwell Network*, which publishes remediated, signed builds of open source components. You will see these as versions carrying an `.rhlw-NNNNN` suffix, for example `1.4.0.rhlw-00001` — a remediated build of `1.4.0` that keeps the original API.
-* *Producing and shipping the change is manual.* Solved by the pipeline you are about to watch: an event-driven trigger, an AI agent that proposes the change, and a signed build-and-deploy path with automatic ticket closure.
+* *Producing and shipping the change is manual.* Solved by the automation you are about to use — from event-driven triggers through merge requests to signed builds and automatic deployment.
 
-.The same seven steps, with the waiting removed.
+== Two Paths Through This Lab
+
+This lab demonstrates two approaches to automating CVE remediation with Lightwell. Both use the same underlying infrastructure — they differ in how much automation and intelligence is applied.
+
+=== Path 1: Quick Win — Deterministic Remediation
+
+The simplest path. No AI, no orchestration. Renovate watches your Lightwell mirror for new remediated versions and mechanically creates merge requests to bump your dependencies. Standard CI/CD handles the rest.
+
+.Path 1: Lightwell + Renovate + CI/CD
 [mermaid]
 ----
 flowchart LR
-  subgraph T["Traditional — weeks"]
-    direction LR
-    t1["Discover"] --> t2["Triage<br/>by hand"] --> t3["Source<br/>a fix"] --> t4["Ticket<br/>and queue"] --> t5["Patch<br/>and build"] --> t6["Deploy"] --> t7["Close"]
-  end
-  subgraph L["Lightwell — minutes"]
-    direction LR
-    l1["Remediated build<br/>arrives"] --> l2["SBOM + VEX<br/>query"] --> l3["Agent proposes<br/>the change"] --> l4["You review<br/>and approve"] --> l5["Build, sign,<br/>deploy"] --> l6["Ticket closed"]
-  end
-  style T fill:#fff3cd,stroke:#997404
-  style L fill:#d1e7dd,stroke:#146c43
-  style l4 fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
-----
-
-Note the one blue step: *you* remain the approval gate. Lightwell removes the searching and the waiting, not the judgement.
-
-== What You Will See in This Lab
-
-The remaining modules follow one CVE through that automated pipeline end to end:
-
-.The pipeline you are about to follow, and where each module joins it.
-[mermaid]
-----
-flowchart TD
-  LW["Lightwell Network<br/>remediated build 1.4.0.rhlw-00001"]
-  NX["Nexus<br/>caches the artifact"]
-  EDA["Event-Driven Ansible<br/>fires on the cache event"]
-  TPA["Trusted Profile Analyzer<br/>SBOM + VEX — who is affected?"]
-  OC["Lightwell OpenCode Agents<br/>analyse and propose"]
-  MR["GitLab merge request<br/>you review and approve"]
-  TSSC["TSSC DevSecOps pipeline<br/>build, sign, attest"]
-  GO["OpenShift GitOps<br/>deploy"]
-  SN["ServiceNow<br/>ticket closed"]
-  LW --> NX --> EDA --> TPA --> OC --> MR --> TSSC --> GO --> SN
-  M1["Module 1"] -.-> NX
-  M2["Module 2"] -.-> TPA
-  M3["Module 3"] -.-> MR
-  M4["Module 4"] -.-> TSSC
+  LW["Lightwell<br/>Network"]
+  NX["Nexus<br/>mirror"]
+  RN["Renovate"]
+  MR["GitLab<br/>merge request"]
+  TK["Tekton<br/>build + sign"]
+  AC["ArgoCD<br/>deploy"]
+  OS["OpenShift<br/>production"]
+  LW --> NX --> RN --> MR --> TK --> AC --> OS
   style MR fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
 ----
 
-[cols="1,4",options="header"]
-|===
-| Module | What happens
-| 1 | A remediated artifact arrives from the Lightwell Network, is cached by the tenant's Nexus repository, and fires an Event-Driven Ansible trigger.
-| 2 | RHTPA is queried with SBOM and VEX data to establish which applications are genuinely affected.
-| 3 | The Lightwell OpenCode Agents analyse the impact, propose the dependency bump, and open a merge request you review and approve.
-| 4 | The DevSecOps pipeline builds and signs the patched application with TSSC, OpenShift GitOps deploys it, and the originating ticket is closed automatically.
-|===
+You will use this path to remediate the *report-generator-app* — a low-risk internal reporting service.
 
-The whole sequence runs in minutes rather than weeks, and — importantly — every step leaves evidence: a signed artifact, an SBOM, a merge request, a closed ticket.
+=== Path 2: Full Automation — AI-Driven Remediation
 
-Continue to xref:module-01-patch-ingestion.adoc[Module 1: Patch Ingestion].
+The enterprise path. An event-driven workflow queries RHTPA to find affected applications, dispatches AI agents to assess risk and generate merge requests, and maintains a ServiceNow ticket throughout. Low-risk changes are auto-approved; high-risk changes are flagged for human review.
+
+.Path 2: Lightwell + Ansible Orchestrator + AI + ServiceNow
+[mermaid]
+----
+flowchart LR
+  LW["Lightwell<br/>Network"]
+  NX["Nexus<br/>mirror"]
+  AO["Ansible<br/>Orchestrator"]
+  TPA["RHTPA<br/>SBOM analysis"]
+  AI["AI Agents<br/>risk + MRs"]
+  MR["GitLab MRs<br/>auto + manual"]
+  TK["Tekton<br/>build + sign"]
+  AC["ArgoCD<br/>deploy"]
+  OS["OpenShift<br/>production"]
+  SN["ServiceNow<br/>updated throughout"]
+  LW --> NX --> AO --> TPA --> AI --> MR --> TK --> AC --> OS
+  AO -.-> SN
+  TPA -.-> SN
+  AI -.-> SN
+  MR -.-> SN
+  OS -.-> SN
+  style MR fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
+  style SN fill:#fff3cd,stroke:#997404
+----
+
+You will use this path to remediate the *wire-transfer-svc* (high risk, needs your approval) and the *benefits-mgmt-app* (low risk, auto-approved by the AI).
+
+=== What They Share
+
+Both paths start with the same event (a remediated artifact arriving from the Lightwell Network) and end the same way (a signed container deployed to production with an updated SBOM). Path 2 adds orchestration, AI-powered risk assessment, and ITSM tracking on top of what Path 1 already provides.
+
+NOTE: In this lab, deployment goes straight to production. Real-world customers typically add stages (test, staging, production), each with its own approval gate.
+
+Continue to xref:module-01-environment.adoc[Module 1: The Environment].

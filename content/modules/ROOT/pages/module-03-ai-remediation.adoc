@@ -1,0 +1,166 @@
+= Module 3: Full Automation — AI-Driven Remediation
+:navtitle: Module 3: AI Remediation (Path 2)
+
+*Duration:* 30 minutes
+
+This module walks through *Path 2* — enterprise-grade automated remediation. An Ansible Orchestrator workflow receives the event, queries RHTPA to identify affected applications, dispatches AI agents to assess risk and generate merge requests, and maintains a ServiceNow ticket throughout. Low-risk changes are auto-approved; high-risk changes are flagged for your review.
+
+This path targets two of your applications:
+
+* *wire-transfer-svc* — high risk, customer-facing. The AI flags it for human approval.
+* *benefits-mgmt-app* — low risk, internal-only. The AI auto-approves it.
+
+== The Full Automation Pipeline
+
+Here is what happens end to end, with no human intervention until the approval step:
+
+.Path 2: end-to-end flow
+[mermaid]
+----
+flowchart TD
+  LW["Lightwell Network<br/>remediated build arrives"]
+  NX["Nexus<br/>caches the artifact"]
+  AO["Ansible Orchestrator<br/>event triggers workflow"]
+  SN1["ServiceNow<br/>ticket opened"]
+  TPA["RHTPA<br/>queries SBOMs — which apps are affected?"]
+  SN2["ServiceNow<br/>updated: affected apps identified"]
+  AI["AI Agents<br/>risk analysis + merge requests"]
+  SN3["ServiceNow<br/>updated: MRs created"]
+  AUTO["benefits-mgmt-app<br/>auto-approved (low risk)"]
+  MANUAL["wire-transfer-svc<br/>flagged for review (high risk)"]
+  YOU["You review and approve"]
+  TK["Tekton<br/>build, sign, attest"]
+  AC["ArgoCD<br/>deploy to production"]
+  SN4["ServiceNow<br/>ticket closed"]
+  LW --> NX --> AO --> SN1
+  AO --> TPA --> SN2
+  TPA --> AI --> SN3
+  AI --> AUTO
+  AI --> MANUAL --> YOU
+  AUTO --> TK
+  YOU --> TK
+  TK --> AC --> SN4
+  style MANUAL fill:#f8d7da,stroke:#b02a37,stroke-width:2px
+  style AUTO fill:#d1e7dd,stroke:#146c43
+  style YOU fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
+----
+
+Every step updates the ServiceNow ticket, creating an audit trail from detection through deployment.
+
+== Triggering the Pipeline
+
+A new Lightwell remediation arrives in Nexus — this time for a dependency used by both `wire-transfer-svc` and `benefits-mgmt-app`. The Nexus webhook fires, and Event-Driven Ansible forwards the event to the Ansible Orchestrator.
+
+You can watch the event arrive in the Orchestrator console:
+
+* URL: `https://ao.{openshift_cluster_ingress_domain}`
+* Username: `{user}`
+* Password: `{password}`
+
+Navigate to the workflow executions view. You should see a new execution starting for your tenant's project (`lightwell-{guid}`).
+
+== Observing the Orchestrator Workflow
+
+The Orchestrator runs a multi-step workflow:
+
+. *Query TPA* — the workflow calls RHTPA with the CVE identifier and asks: which of this tenant's applications contain the affected component?
+. *Identify affected apps* — TPA returns the list based on SBOM data. In this case, both `wire-transfer-svc` and `benefits-mgmt-app` are affected.
+. *Assess risk* — the workflow evaluates each application's risk profile. `wire-transfer-svc` is flagged as high risk (customer-facing, compliance requirements). `benefits-mgmt-app` is classified as low risk (internal, no compliance mandate).
+. *Dispatch AI agents* — for each affected application, an AI agent generates the appropriate merge request, including a risk assessment summary.
+
+Watch each step complete in the Orchestrator canvas. Each step transitions from pending to running to complete.
+
+== ServiceNow Ticket Lifecycle
+
+Switch to the https://snow-mock-snow-{guid}.{openshift_cluster_ingress_domain}[ServiceNow mock] (no login required).
+
+A ticket was opened when the workflow started. As you watch, it is updated at each stage:
+
+[cols="1,3",options="header"]
+|===
+| Stage | ServiceNow update
+| Workflow started | Ticket created: "CVE remediation in progress"
+| TPA analysis complete | Updated: "2 applications affected — wire-transfer-svc, benefits-mgmt-app"
+| AI assessment complete | Updated: "Risk assessed — 1 auto-approved, 1 pending review"
+| MRs created | Updated: "Merge requests generated in GitLab"
+| Build complete | Updated: "Patched images built and signed"
+| Deployed | Updated: "Deployed to production"
+| Verified | Ticket closed: "Remediation complete"
+|===
+
+This is the audit trail that compliance teams need — every step is timestamped and linked to artifacts.
+
+== AI Risk Assessment and Auto-Approval
+
+The AI agent evaluates each application against its risk profile:
+
+*benefits-mgmt-app* (low risk):
+
+* Internal application, no customer data exposure
+* The dependency bump is a compatible `.rhlw` rebuild — same API, same behaviour
+* No compliance requirements mandate human review
+* *Decision: auto-approve*
+
+The AI creates the merge request and immediately approves it. The Tekton pipeline triggers and the patched application begins building.
+
+*wire-transfer-svc* (high risk):
+
+* Customer-facing, processes financial transactions
+* Subject to PCI-DSS and SOX compliance
+* Even a compatible rebuild warrants human review given the blast radius
+* *Decision: flag for human approval*
+
+The merge request is created but left open, waiting for you.
+
+== Reviewing the High-Risk MR
+
+Switch to https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab] and navigate to the `acme-{guid}/wire-transfer-svc` repository. Open the merge request.
+
+The MR includes:
+
+* The `pom.xml` diff — the dependency version bumped to the `.rhlw` remediated build
+* A risk assessment summary from the AI agent explaining what was analysed and why it was flagged
+* The CVE details and remediation context
+
+Review the diff and the AI's assessment. When you are satisfied, approve and merge the request.
+
+== Build, Deploy, and Close the Loop
+
+Merging the MR triggers the same Tekton pipeline you saw in Path 1:
+
+. *Build* the application with the remediated dependency
+. *Generate SBOM* for the new build
+. *Sign* the container image
+. *Push* to the registry
+
+Watch the pipeline in the OpenShift Console under *Pipelines* (log in via OpenShift SSO if not already). Both applications (the auto-approved `benefits-mgmt-app` and the just-approved `wire-transfer-svc`) should be building or already deployed.
+
+Once the pipeline completes, ArgoCD deploys the new images to production. Check the https://openshift-gitops-server-openshift-gitops.{openshift_cluster_ingress_domain}[ArgoCD console] (log in via OpenShift) to confirm both applications are synced and healthy.
+
+Return to ServiceNow — the ticket should now be closed, with a complete timeline from detection through deployment.
+
+== SBOM Verification
+
+Navigate to https://tpa-{guid}.{openshift_cluster_ingress_domain}[TPA] and check the SBOMs for both applications. Compare the old and new builds:
+
+* The vulnerable component version should be gone
+* The `.rhlw-00001` remediated version should be present
+* Both applications show clean — the CVE is resolved across your estate
+
+== Summary
+
+You have just seen the *Full Automation* path:
+
+. A remediated artifact arrived in Nexus
+. The Ansible Orchestrator received the event and triggered a workflow
+. RHTPA identified which applications were affected via SBOM analysis
+. AI agents assessed risk and generated merge requests
+. The low-risk app was auto-approved; the high-risk app was flagged for your review
+. You approved the remaining MR
+. Tekton built, signed, and attested both applications
+. ArgoCD deployed them to production
+. ServiceNow tracked the entire lifecycle and auto-closed the ticket
+
+The difference from Path 1: intelligence and orchestration. The system knew *which* applications were affected (not just which dependency), assessed *how risky* each change was, and made appropriate decisions — auto-approving the safe ones and escalating the others.
+
+Continue to xref:module-04-wrapup.adoc[Module 4: Wrap-Up].

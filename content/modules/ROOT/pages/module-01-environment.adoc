@@ -3,7 +3,7 @@
 
 *Duration:* 10 minutes
 
-This module orients you to the pre-deployed environment. Everything described here is already running — your job is to click through each console and confirm you can reach it before starting the hands-on modules.
+This module orients you to the pre-deployed environment. Everything described here is already running. You do not need to open anything yet — you will visit each component as needed throughout the lab.
 
 == Your Company: Acme Inc.
 
@@ -21,86 +21,95 @@ All three applications are stored in your GitLab instance under the `acme-{guid}
 
 == The Platform Components
 
-Open each of the following in a new browser tab. You will use all of them during the lab.
+[cols="3,3",options="header"]
+|===
+| Component | Credentials
+
+| https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}[Nexus (Maven + OCI registry)]
+| admin / `{password}`
+
+| https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab]
+| `{user}` / `{password}`
+
+| https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate Operator]
+| (no login required)
+
+| OpenShift Console — *Pipelines* (Tekton CI)
+| Log in via OpenShift SSO
+
+| https://openshift-gitops-server-openshift-gitops.{openshift_cluster_ingress_domain}[ArgoCD]
+| Log in via OpenShift
+
+| https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer (TPA)]
+| `{user}` / `{password}` (SSO)
+
+| https://snow-mock-snow-{guid}.{openshift_cluster_ingress_domain}[ServiceNow (simulated)]
+| (no login required)
+
+| https://ao.{openshift_cluster_ingress_domain}[Ansible Orchestrator]
+| `{user}` / `{password}`
+|===
+
+You will visit these as needed throughout the lab.
 
 === Lightwell Network (Simulated)
 
 The Lightwell Network publishes remediated, signed builds of open source components — the `.rhlw-NNNNN` versions you read about in Module 0. In a production environment, these would be fetched from `packages.redhat.com` with an active Lightwell subscription.
 
-For this lab, a *simulated* Lightwell repository is hosted in your tenant's Nexus instance at:
+For this lab, a *simulated* Lightwell repository is hosted in your tenant's Nexus instance. It contains the same artifact structure as the real Lightwell repository — Maven metadata, POMs, and JARs with `.rhlw` version suffixes — so the automation behaves identically. Nexus also serves as a Maven build cache and an OCI container registry for your built images.
 
-----
-https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}/repository/lightwell-java-remediated
-----
-
-This contains the same artifact structure as the real Lightwell repository — Maven metadata, POMs, and JARs with `.rhlw` version suffixes — so the automation behaves identically.
-
-Your Nexus also serves as a Maven build cache and an OCI container registry. Tekton pipelines push built container images to Nexus, and ArgoCD deploys from there.
+* *Quick Win (Path 1):* Renovate watches this repository for new `.rhlw` versions and creates merge requests.
+* *Full AI (Path 2):* Nexus fires an event when a new artifact arrives, triggering the Ansible Orchestrator workflow.
 
 === GitLab
 
-Your three applications are in the `acme-{guid}` group:
+Source code for your three Acme applications. Each app has a `pom.xml` with vulnerable dependencies and a `renovate.json` that configures the Lightwell preset.
 
-* URL: `https://gitlab-gitlab.{openshift_cluster_ingress_domain}`
-* Username: `{user}`
-* Password: `{password}`
-
-Browse to the `acme-{guid}` group and confirm you can see all three repositories. Each has a `pom.xml` with vulnerable dependencies and a `renovate.json` that configures the Lightwell preset.
+* *Quick Win (Path 1):* Renovate creates merge requests here. Merging triggers the CI pipeline.
+* *Full AI (Path 2):* AI agents create merge requests here. Low-risk ones are auto-approved; high-risk ones wait for you.
 
 === Renovate Operator
 
-Renovate is a dependency update tool that creates merge requests when it finds newer versions. The Renovate operator is installed at the cluster level and can run scans on demand via `RenovateJob` custom resources.
+A dependency update tool that creates merge requests when it finds newer versions. Installed at the cluster level; you trigger scans by creating `RenovateJob` custom resources.
 
-The operator web UI is at:
-
-----
-https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}
-----
-
-You will create a `RenovateJob` in Module 2.
+* *Quick Win (Path 1):* You create a RenovateJob and watch it generate merge requests.
+* *Full AI (Path 2):* Not used — the AI agents handle remediation instead.
 
 === Tekton Pipelines (CI)
 
-Tekton handles the build side: compiling the application, generating an SBOM, signing the container image, and pushing it to the registry. Pipelines trigger automatically when a merge request is merged in GitLab.
+Compiles the application, generates an SBOM, signs the container image, and pushes it to the Nexus OCI registry. Pipelines trigger automatically when a merge request is merged in GitLab.
 
-You can observe pipeline runs in the OpenShift Console under *Pipelines*.
+* *Both paths:* Tekton builds the patched application after you (or the AI) approve a merge request.
 
 === ArgoCD (CD)
 
-ArgoCD handles the deployment side: when a new container image is available, ArgoCD detects the change and rolls it out.
+Detects new container images and deploys them to the target environment.
 
-* URL: `https://openshift-gitops-server-openshift-gitops.{openshift_cluster_ingress_domain}`
-* Log in with *Log in via OpenShift* using your OpenShift credentials.
+NOTE: In this lab, ArgoCD deploys straight to production. Real-world customers typically configure multiple stages — test, staging, production — each with its own sync policy and approval gate.
 
-NOTE: In this lab, ArgoCD deploys straight to production. Real-world customers typically configure ArgoCD with multiple stages — test, staging, production — each with its own sync policy and approval gate.
+* *Both paths:* ArgoCD deploys the newly built image to production after the pipeline completes.
 
 === Trusted Profile Analyzer (TPA)
 
-Each tenant has its own TPA instance, so you only see SBOMs and vulnerability data for your own applications. TPA stores and queries the SBOMs generated by your builds. In Path 1 (Renovate), you will use it after the build to compare SBOMs and confirm the fix landed. In Path 2 (AI), TPA plays an active role — the orchestrator queries it to find which applications are affected by a CVE.
+Stores and queries SBOMs generated by your builds. Each tenant has its own TPA instance, so you only see data for your own applications.
 
-* URL: `https://tpa-{guid}.{openshift_cluster_ingress_domain}`
-* Log in via SSO with your credentials.
+* *Quick Win (Path 1):* You compare SBOMs after the build to confirm the fix landed.
+* *Full AI (Path 2):* The orchestrator actively queries TPA to find which applications are affected by a CVE.
 
 === ServiceNow (Simulated)
 
-A lightweight mock of ServiceNow's ITSM interface. In Path 2, the Ansible Orchestrator opens a ticket when a remediation starts and updates it at each stage — TPA analysis, AI assessment, MR creation, build, deploy, and closure.
+A lightweight mock of ServiceNow's ITSM interface. Provides an audit trail from detection through deployment.
 
-* URL: `https://snow-mock-snow-{guid}.{openshift_cluster_ingress_domain}`
+* *Quick Win (Path 1):* Not used.
+* *Full AI (Path 2):* The Ansible Orchestrator opens a ticket at the start and updates it at every stage — TPA analysis, AI assessment, MR creation, build, deploy, and closure.
 
-You do not need to interact with ServiceNow in Path 1.
+=== Ansible Orchestrator
 
-=== Ansible Automation Platform and Orchestrator
+Drives the full automation workflow. Receives events from Nexus, dispatches queries to TPA, hands off to AI agents, and tracks the entire flow through ServiceNow.
 
-The Ansible Orchestrator drives the full automation workflow in Path 2. It receives events from Nexus, dispatches queries to TPA, hands off to AI agents, and tracks the entire flow.
-
-* Orchestrator URL: `https://ao.{openshift_cluster_ingress_domain}`
-* Username: `{user}`
-* Password: `{password}`
-
-You do not need to interact with the Orchestrator in Path 1.
+* *Quick Win (Path 1):* Not used.
+* *Full AI (Path 2):* Orchestrates the entire remediation pipeline end to end.
 
 == Ready?
-
-You should now have tabs open for GitLab, Nexus, the OpenShift Console, ArgoCD, and TPA. The remaining consoles (ServiceNow, Orchestrator, Renovate) you will open when needed.
 
 Continue to xref:module-02-renovate.adoc[Module 2: Quick Win — Deterministic Remediation with Renovate].
