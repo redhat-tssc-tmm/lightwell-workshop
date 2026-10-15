@@ -166,14 +166,14 @@ Wait for the next Renovate tick (up to 5 minutes). You can watch the progress in
 
 [source,bash,subs=attributes+]
 ----
-oc get pods -n {user}-renovate -l renovate-operator.mogenius.com/job-type=executor --watch
+oc get pods -n {user}-renovate -l renovate-operator.mogenius.com/type=executor --watch
 ----
 
 When the executor pod completes, check the logs:
 
 [source,bash,subs=attributes+]
 ----
-oc logs -n {user}-renovate -l renovate-operator.mogenius.com/job-type=executor --tail=20
+oc logs -n {user}-renovate -l renovate-operator.mogenius.com/type=executor --tail=20
 ----
 
 Look for messages like:
