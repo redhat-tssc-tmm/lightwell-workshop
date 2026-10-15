@@ -1,0 +1,17 @@
+{{- if not ((.Values.snow | default dict).image) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snow-mock-code
+  namespace: {{ include "bootstrap-tenant.snowNamespace" . }}
+  labels:
+    app: snow-mock
+    lightwell.guid: {{ .Values.guid | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  app.py: |
+{{ .Files.Get "files/snow-mock/app.py" | indent 4 }}
+  requirements.txt: |
+{{ .Files.Get "files/snow-mock/requirements.txt" | indent 4 }}
+{{- end }}

@@ -10,9 +10,10 @@ not see other tenants' workflow lists. For each lab tenant this script ensures:
      built-in ``users`` group so the shared ``default`` project is hidden
   3. EDA bridge service account + client_credentials in that project
   4. AO credential for AAP Controller (launch job templates)
-  5. Published ``Lightwell Remediation`` workflow — Query TPA → blast-radius
-     gate → Impact Analyzer; GitLab resume → MR Verifier (guid-scoped EDA
-     webhook paths so tenants cannot trigger each other)
+  5. Published ``Lightwell Remediation`` workflow — SNOW → Query TPA →
+     classify → for-each (Impact draft MR → Verifier → Switch/Approval →
+     merge) → SNOW finalize; optional GitLab resume Verifier (guid-scoped
+     EDA webhook paths so tenants cannot trigger each other)
   6. Writes client_id / client_secret into a Kubernetes Secret for EDA bootstrap
 
 Requires env:
@@ -292,6 +293,12 @@ AAP_CREDENTIAL_NAME = "AAP Controller"
 JT_QUERY_TPA = "SDLC Query TPA"
 JT_IMPACT = "SDLC Trigger Impact Analyzer"
 JT_MR_VERIFIER = "SDLC Trigger MR Verifier"
+JT_SNOW_CREATE = "SDLC Create SNOW Incident"
+JT_CLASSIFY = "SDLC Classify Affected Apps"
+JT_SNOW_COMMENT = "SDLC SNOW Comment"
+JT_SNOW_ITER = "SDLC SNOW Iteration Comment"
+JT_SNOW_FINALIZE = "SDLC SNOW Finalize"
+JT_MERGE_MR = "SDLC Merge GitLab MR"
 AAP_INTEGRATION_NAME = "AAP Lightwell"
 
 
@@ -409,6 +416,7 @@ def _aap_jt_node(
     extra_vars: dict[str, Any],
     *,
     integration_id: str = "",
+    continue_on_failure: bool = False,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {
         "job_template_name": job_template_name,
@@ -418,12 +426,16 @@ def _aap_jt_node(
     }
     if integration_id:
         params["integration_id"] = integration_id
-    return {
+    node: dict[str, Any] = {
         "id": node_id,
         "name": name,
         "type": "aap_job_template",
         "parameters": params,
     }
+    # AO schema: continue_on_failure lives under settings, not top-level.
+    if continue_on_failure:
+        node["settings"] = {"continue_on_failure": True}
+    return node
 
 
 def remediation_workflow_definition(
@@ -436,12 +448,13 @@ def remediation_workflow_definition(
     remediation_app_git_url: str = "",
     aap_integration_id: str = "",
 ) -> dict:
-    """Nexus start → Query TPA → blast-radius gate → Impact; GitLab resume → MR Verifier.
+    """Multi-app remediation: SNOW → TPA → classify → for-each → finalize.
 
-    Parity with legacy ``sdlc-remediation-legacy.yml``, but AO owns the chain and
-    EDA only bridges into the guid-scoped start/resume triggers.
+    In-run Verifier + Switch(approval) + merge is the only path. GitLab MR-open
+    → Resume → mr_verifier_legacy was removed — it dual-fired Verifier and raced
+    the in-loop agent.
     """
-    query_vars = {
+    trigger_common = {
         "artifact_name": "${trigger.artifact_name}",
         "artifact_group": "${trigger.artifact_group}",
         "artifact_version": "${trigger.artifact_version}",
@@ -455,9 +468,12 @@ def remediation_workflow_definition(
         "keycloak_tpa_realm": "${trigger.keycloak_tpa_realm}",
         "tpa_uploader_username": "${trigger.tpa_uploader_username}",
         "tpa_oauth_client_id": "${trigger.tpa_oauth_client_id}",
+        "tpa_oauth_client_secret": "${trigger.tpa_oauth_client_secret}",
         "tpa_uploader_password": "${trigger.tpa_uploader_password}",
         "tpa_sbom_label": "${trigger.tpa_sbom_label}",
+
         "gitlab_url": "${trigger.gitlab_url}",
+        "gitlab_token": "${trigger.gitlab_token}",
         "remediation_app_gitlab_path": "${trigger.remediation_app_gitlab_path}",
         "eda_webhook_url": "${trigger.eda_webhook_url}",
         "blast_radius_mode": "${trigger.blast_radius_mode}",
@@ -466,60 +482,86 @@ def remediation_workflow_definition(
         "opencode_server_password": "${trigger.opencode_server_password}",
         "aap_organization_name": "${trigger.aap_organization_name}",
         "guid": "${trigger.guid}",
+        "snow_url": "${trigger.snow_url}",
+        "snow_svc_url": "${trigger.snow_svc_url}",
     }
-    # Demo-A: rebuild Impact inputs from the start trigger (single help-app).
-    # Query TPA still gates via job success (fails when blast_radius.count < 1)
-    # and exports set_stats artifacts for richer multi-app canvases later.
-    #
-    # Prefer a full .git URL (literal from bootstrap env) — AO expressions cannot
-    # concatenate gitlab_url + path, and OpenCode needs the clone URL.
-    repo_url = remediation_app_git_url or "${trigger.gitlab_url}"
-    impact_vars = {
-        "package_info": {
-            "purl": "${trigger.package_purl}",
-            # Maven GAV artifactId (not purl) — OpenCode bump-maven-mr matches pom.xml.
-            "artifact_id": "${trigger.artifact_name}",
-            "vulnerable_version": "${trigger.vulnerable_version}",
-            "fix_version": "${trigger.fix_version}",
-            "new_version": "${trigger.fix_version}",
-            "cve_id": "${trigger.cve_id}",
-        },
-        "affected_repos": [
-            {
-                "gitlab_path": "${trigger.remediation_app_gitlab_path}",
-                "repo_url": repo_url,
-                "sbom_label": "${trigger.tpa_sbom_label}",
-                "match_reason": "ao_orchestrated",
-                "app_classification": "demo",
-                "deployment_env": "development",
-            }
-        ],
-        "blast_radius": {
-            "mode": "${trigger.blast_radius_mode}",
-            "count": 1,
-        },
-        "opencode_base_url": "${trigger.opencode_base_url}",
-        "opencode_server_username": "${trigger.opencode_server_username}",
-        "opencode_server_password": "${trigger.opencode_server_password}",
-        "gitlab_url": "${trigger.gitlab_url}",
+    snow_create_vars = {
+        **trigger_common,
+    }
+    query_vars = {
+        **trigger_common,
+    }
+    classify_vars = {
+        **trigger_common,
+        "affected_repos": "${query_tpa.artifacts.affected_repos}",
+        "package_info": "${query_tpa.artifacts.package_info}",
+        "blast_radius": "${query_tpa.artifacts.blast_radius}",
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
+    }
+    classify_comment_vars = {
+        "snow_url": "${trigger.snow_url}",
+        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
+        "snow_comment_body": "${classify.artifacts.snow_comment_body}",
         "guid": "${trigger.guid}",
+    }
+    # Loop body: one AO-owned app from classify.ao_apps.
+    # Inside a for_each body, `loop` is already the current loop context — use
+    # ${loop.item}, not ${loop.<loop_id>.item} (that double-scopes to
+    # loop.apps_loop.apps_loop.item and fails expression resolve).
+    impact_vars = {
+        **trigger_common,
+        "package_info": "${classify.artifacts.package_info}",
+        "app_item": "${loop.item}",
+        "affected_repos": ["${loop.item}"],
+        "blast_radius": {"mode": "multi_app_policy_demo", "count": 1},
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
     }
     verifier_vars = {
-        "merge_request_iid": "${trigger.merge_request_iid}",
-        "project_id": "${trigger.project_id}",
-        "source_branch": "${trigger.source_branch}",
-        "target_branch": "${trigger.target_branch}",
-        "repository_git_url": "${trigger.repository_git_url}",
-        "opencode_base_url": "${trigger.opencode_base_url}",
-        "opencode_server_username": "${trigger.opencode_server_username}",
-        "opencode_server_password": "${trigger.opencode_server_password}",
+        **trigger_common,
+        "merge_request_iid": "${impact.artifacts.merge_request_iid}",
+        "project_id": "${impact.artifacts.project_id}",
+        "gitlab_path": "${impact.artifacts.gitlab_path}",
+        "approval": "${impact.artifacts.approval}",
+        "source_branch": "${impact.artifacts.source_branch}",
+        "target_branch": "${impact.artifacts.target_branch}",
+        "repository_git_url": "${impact.artifacts.repository_git_url}",
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
+    }
+    merge_vars = {
+        **trigger_common,
+        "merge_request_iid": "${verifier.artifacts.merge_request_iid}",
+        "project_id": "${verifier.artifacts.project_id}",
+        "gitlab_path": "${verifier.artifacts.gitlab_path}",
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
+    }
+    iter_comment_base = {
+        "snow_url": "${trigger.snow_url}",
+        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
+        "gitlab_path": "${verifier.artifacts.gitlab_path}",
+        "approval": "${verifier.artifacts.approval}",
+        "merge_request_iid": "${verifier.artifacts.merge_request_iid}",
+        "verifier_status": "${verifier.artifacts.verifier_status}",
         "guid": "${trigger.guid}",
     }
+    finalize_vars = {
+        "snow_url": "${trigger.snow_url}",
+        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
+        "guid": "${trigger.guid}",
+        "snow_comment_body": (
+            "Lightwell AO multi-app remediation finished "
+            "(guid=${trigger.guid}). See iteration comments for per-app outcomes."
+        ),
+    }
+    _ = (remediation_app_git_url, resume_path)  # resume_path unused; kept for call-site compat
+
     return {
         "name": "Lightwell Remediation",
         "description": (
-            "Nexus→EDA→AO: Query TPA → Impact Analyzer; "
-            "GitLab MR→EDA→AO: MR Verifier (per-tenant isolation)"
+            "Nexus→EDA→AO: SNOW create → Query TPA → classify → "
+            "for-each (Impact → Verifier → Switch approval → merge) → SNOW finalize"
         ),
         "schema_version": "2.0.0",
         "triggers": [
@@ -532,17 +574,17 @@ def remediation_workflow_definition(
                     "authorized_service_account_ids": [sa_id],
                 },
             },
-            {
-                "id": "resume_trigger",
-                "name": "GitLab resume",
-                "type": "eda_trigger",
-                "parameters": {
-                    "webhook_path": resume_path,
-                    "authorized_service_account_ids": [sa_id],
-                },
-            },
         ],
         "nodes": [
+            _aap_jt_node(
+                "snow_create",
+                "Create SNOW incident",
+                JT_SNOW_CREATE,
+                aap_org,
+                aap_credential_id,
+                snow_create_vars,
+                integration_id=aap_integration_id,
+            ),
             _aap_jt_node(
                 "query_tpa",
                 "Query TPA",
@@ -552,14 +594,41 @@ def remediation_workflow_definition(
                 query_vars,
                 integration_id=aap_integration_id,
             ),
+            # No condition gate here: a failed aap_job_template already stops the
+            # run. A condition on ${query_tpa.job_status} was dead-ending the
+            # canvas (field not populated as expected → false → no classify).
+            _aap_jt_node(
+                "classify",
+                "Classify affected apps",
+                JT_CLASSIFY,
+                aap_org,
+                aap_credential_id,
+                classify_vars,
+                integration_id=aap_integration_id,
+            ),
+            _aap_jt_node(
+                "snow_classify_comment",
+                "SNOW classify comment",
+                JT_SNOW_COMMENT,
+                aap_org,
+                aap_credential_id,
+                classify_comment_vars,
+                integration_id=aap_integration_id,
+            ),
             {
-                "id": "has_blast",
-                "name": "Query TPA succeeded",
-                "type": "condition",
-                # query-tpa fails when blast_radius.count < 1 (after set_stats + EDA callback).
+                "id": "apps_loop",
+                "name": "Remediate AO apps",
+                "type": "loop",
+                # items must be an expression string (not a literal list).
+                # Body nodes hang off from_port=iterate; do NOT edge back to the
+                # loop (API treats that as an illegal cycle). AO returns to the
+                # loop when the iterate branch ends, then follows complete.
                 "parameters": {
-                    "condition": '${query_tpa.job_status} == "successful"',
+                    "type": "for_each",
+                    "items": "${classify.artifacts.ao_apps}",
+                    "max_iterations": 10,
                 },
+                "settings": {"continue_on_failure": True},
             },
             _aap_jt_node(
                 "impact",
@@ -569,22 +638,165 @@ def remediation_workflow_definition(
                 aap_credential_id,
                 impact_vars,
                 integration_id=aap_integration_id,
+                continue_on_failure=True,
             ),
             _aap_jt_node(
-                "mr_verifier",
+                "verifier",
                 "MR Verifier",
                 JT_MR_VERIFIER,
                 aap_org,
                 aap_credential_id,
                 verifier_vars,
                 integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            {
+                "id": "verifier_ok",
+                "name": "Verifier passed?",
+                "type": "condition",
+                "parameters": {
+                    # Prefer set_stats from the Verifier playbook — job_status
+                    # is not reliably exposed on aap_job_template node outputs.
+                    # AO treats bare `true` as a step name; compare the string
+                    # iteration_outcome instead of a boolean literal.
+                    "condition": '${verifier.artifacts.iteration_outcome} == "verifier_pass"',
+                },
+            },
+            {
+                "id": "approval_switch",
+                "name": "Approval policy",
+                "type": "switch",
+                "parameters": {
+                    # Port/value MUST NOT be bare "auto" (Ansible/AO reserved).
+                    # auto_approve → merge immediately; needs_approval → human
+                    # "Approve remediation MR" node. AO fails the switch when no
+                    # case matches — default_port alone is not enough.
+                    "cases": [
+                        {
+                            "port": "auto_approve",
+                            "label": "Auto-approve merge",
+                            "condition": (
+                                '${verifier.artifacts.approval} == "auto_approve"'
+                            ),
+                        },
+                        {
+                            "port": "needs_approval",
+                            "label": "Needs approval",
+                            "condition": (
+                                '${verifier.artifacts.approval} == "needs_approval"'
+                            ),
+                        },
+                    ],
+                    "default_port": "auto_approve",
+                },
+            },
+            {
+                "id": "human_approval",
+                "name": "Approve remediation MR",
+                "type": "approval",
+                "parameters": {
+                    "prompt": (
+                        "Approve merging the verified remediation MR for "
+                        "${verifier.artifacts.gitlab_path} (!${verifier.artifacts.merge_request_iid})?"
+                    ),
+                    "decision_window": 86400,
+                    "fallback_decision": "reject",
+                },
+                "settings": {"continue_on_failure": True},
+            },
+            _aap_jt_node(
+                "merge_auto",
+                "Merge MR (auto)",
+                JT_MERGE_MR,
+                aap_org,
+                aap_credential_id,
+                merge_vars,
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            _aap_jt_node(
+                "merge_approved",
+                "Merge MR (after approval)",
+                JT_MERGE_MR,
+                aap_org,
+                aap_credential_id,
+                merge_vars,
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            _aap_jt_node(
+                "snow_iter_ok",
+                "SNOW iteration (merged)",
+                JT_SNOW_ITER,
+                aap_org,
+                aap_credential_id,
+                {**iter_comment_base, "iteration_outcome": "merged"},
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            _aap_jt_node(
+                "snow_iter_fail",
+                "SNOW iteration (verifier fail)",
+                JT_SNOW_ITER,
+                aap_org,
+                aap_credential_id,
+                {**iter_comment_base, "iteration_outcome": "verifier_fail"},
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            _aap_jt_node(
+                "snow_iter_reject",
+                "SNOW iteration (approval rejected)",
+                JT_SNOW_ITER,
+                aap_org,
+                aap_credential_id,
+                {**iter_comment_base, "iteration_outcome": "approval_rejected"},
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            _aap_jt_node(
+                "snow_finalize",
+                "SNOW finalize",
+                JT_SNOW_FINALIZE,
+                aap_org,
+                aap_credential_id,
+                finalize_vars,
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
             ),
         ],
         "edges": [
-            {"from": "start_trigger", "to": "query_tpa"},
-            {"from": "query_tpa", "to": "has_blast"},
-            {"from": "has_blast", "to": "impact", "from_port": "true"},
-            {"from": "resume_trigger", "to": "mr_verifier"},
+            {"from": "start_trigger", "to": "snow_create"},
+            {"from": "snow_create", "to": "query_tpa"},
+            {"from": "query_tpa", "to": "classify"},
+            {"from": "classify", "to": "snow_classify_comment"},
+            {"from": "snow_classify_comment", "to": "apps_loop"},
+            # for-each body
+            {"from": "apps_loop", "to": "impact", "from_port": "iterate"},
+            {"from": "impact", "to": "verifier"},
+            {"from": "verifier", "to": "verifier_ok"},
+            {"from": "verifier_ok", "to": "approval_switch", "from_port": "true"},
+            {"from": "verifier_ok", "to": "snow_iter_fail", "from_port": "false"},
+            {
+                "from": "approval_switch",
+                "to": "merge_auto",
+                "from_port": "auto_approve",
+            },
+            {
+                "from": "approval_switch",
+                "to": "human_approval",
+                "from_port": "needs_approval",
+            },
+            {"from": "human_approval", "to": "merge_approved", "from_port": "approved"},
+            {
+                "from": "human_approval",
+                "to": "snow_iter_reject",
+                "from_port": "rejected",
+            },
+            {"from": "merge_auto", "to": "snow_iter_ok"},
+            {"from": "merge_approved", "to": "snow_iter_ok"},
+            # Iteration ends at snow_iter_* (no edge back to apps_loop — illegal cycle).
+            {"from": "apps_loop", "to": "snow_finalize", "from_port": "complete"},
         ],
     }
 

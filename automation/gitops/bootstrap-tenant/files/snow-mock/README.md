@@ -1,0 +1,19 @@
+# snow-mock (vendored)
+
+Lightweight ServiceNow ITSM mock used by `bootstrap-tenant` (`snow-<guid>`).
+
+Upstream origin: [redhat-ads-tech/snow-mock](https://github.com/redhat-ads-tech/snow-mock).
+This copy lives under the tenant chart so GitOps can deploy comment-capable
+builds without waiting on a Quay publish (ConfigMap + UBI Python; optional
+Dockerfile for ImageStream builds).
+
+## Comments API
+
+| Method | Path | Body |
+|--------|------|------|
+| `GET` | `/api/v1/incidents/{number}/comments` | — |
+| `POST` | `/api/v1/incidents/{number}/comments` | `{ "body": "...", "created_by": "...", "type": "additional_comments\|work_notes" }` |
+| `GET` | `/api/v1/incidents/{number}` | embeds `comments[]` |
+| `PATCH` | `/api/v1/incidents/{number}` | `additional_comments` / `work_notes` / `comment` → journal entries |
+
+Aliases accepted on POST: `body`, `text`, `comment`, `value`, `work_notes`, `additional_comments`.

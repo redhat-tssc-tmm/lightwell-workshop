@@ -63,6 +63,36 @@ subjects:
   - kind: ServiceAccount
     name: tpa-oidc-setup
     namespace: {{ include "tpa.namespace" . }}
+---
+# EDA bootstrap reads oidc-cli to put tpa-cli client_credentials into activation extras.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eda-tpa-oidc-reader-{{ .Values.guid }}
+  namespace: {{ include "tpa.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["oidc-cli"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eda-tpa-oidc-reader-{{ .Values.guid }}
+  namespace: {{ include "tpa.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: eda-tpa-oidc-reader-{{ .Values.guid }}
+subjects:
+  - kind: ServiceAccount
+    name: lightwell-tenant-jobs
+    namespace: {{ include "bootstrap-tenant.jobNamespace" . }}
 {{- if .Values.tpa.rhda.enabled }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

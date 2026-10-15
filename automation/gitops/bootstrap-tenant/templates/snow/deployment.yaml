@@ -17,11 +17,72 @@ spec:
     metadata:
       labels:
         app: snow-mock
+      annotations:
+        {{- if not ((.Values.snow | default dict).image) }}
+        checksum/code: {{ .Files.Get "files/snow-mock/app.py" | sha256sum }}
+        checksum/static: {{ printf "%s%s%s" (.Files.Get "files/snow-mock/static/app.js") (.Files.Get "files/snow-mock/static/index.html") (.Files.Get "files/snow-mock/static/styles.css") | sha256sum }}
+        {{- end }}
     spec:
       containers:
       - name: snow-mock
-        image: quay.io/redhat-ads-tech/snow-mock:1.0.0
+        {{- if ((.Values.snow | default dict).image) }}
+        image: {{ .Values.snow.image | quote }}
+        imagePullPolicy: {{ ((.Values.snow | default dict).imagePullPolicy) | default "IfNotPresent" }}
+        {{- else }}
+        image: {{ ((.Values.snow | default dict).runtimeImage) | default "registry.access.redhat.com/ubi9/python-311:latest" | quote }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -ec
+        - |
+          pip install --quiet --target=/tmp/deps -r /opt/app/requirements.txt
+          export PYTHONPATH=/tmp/deps
+          cd /opt/app
+          exec python -m gunicorn --bind 0.0.0.0:8080 --workers 1 --threads 4 app:app
+        {{- end }}
         ports:
         - name: http
           containerPort: 8080
           protocol: TCP
+        env:
+        - name: DEMO_USER_NAME
+          value: {{ ((.Values.snow | default dict).demoUserName) | default "Demo User" | quote }}
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+        {{- if not ((.Values.snow | default dict).image) }}
+        volumeMounts:
+        - name: code
+          mountPath: /opt/app/app.py
+          subPath: app.py
+        - name: code
+          mountPath: /opt/app/requirements.txt
+          subPath: requirements.txt
+        - name: static
+          mountPath: /opt/app/static
+        {{- end }}
+      {{- if not ((.Values.snow | default dict).image) }}
+      volumes:
+      - name: code
+        configMap:
+          name: snow-mock-code
+      - name: static
+        configMap:
+          name: snow-mock-static
+      {{- end }}

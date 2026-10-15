@@ -76,6 +76,12 @@ SDLC_WORKER_JOB_TEMPLATES = [
     ("SDLC Query TPA", "playbooks/query-tpa.yml"),
     ("SDLC Trigger Impact Analyzer", "playbooks/trigger-impact-analyzer.yml"),
     ("SDLC Trigger MR Verifier", "playbooks/trigger-mr-verifier.yml"),
+    ("SDLC Create SNOW Incident", "playbooks/snow-create-incident.yml"),
+    ("SDLC Classify Affected Apps", "playbooks/classify-affected-apps.yml"),
+    ("SDLC SNOW Comment", "playbooks/snow-comment.yml"),
+    ("SDLC SNOW Iteration Comment", "playbooks/snow-iteration-comment.yml"),
+    ("SDLC SNOW Finalize", "playbooks/snow-finalize.yml"),
+    ("SDLC Merge GitLab MR", "playbooks/merge-gitlab-mr.yml"),
 ]
 
 # Automation Orchestrator entry points. sdlc-remediation.yml launches these
@@ -322,10 +328,13 @@ def build_extra_var_yaml() -> str:
         f"tpa_url: {env('TPA_URL')}",
         f"keycloak_url: {env('KEYCLOAK_URL')}",
         f"keycloak_tpa_realm: {env('KEYCLOAK_TPA_REALM', 'trusted-profile-analyzer')}",
-        f"tpa_oauth_client_id: {env('TPA_OAUTH_CLIENT_ID', 'trustify-ui')}",
+        # Prefer tpa-cli client_credentials (per-tenant TPA). Password grant
+        # against tpa-frontend fails — that client disallows direct access grants.
+        f"tpa_oauth_client_id: {env('TPA_OAUTH_CLIENT_ID', 'tpa-cli')}",
         f"tpa_uploader_username: {env('TPA_UPLOADER_USERNAME')}",
         f"tpa_uploader_password: {env('TPA_UPLOADER_PASSWORD')}",
         f"tpa_sbom_label: {env('TPA_SBOM_LABEL')}",
+
         f"eda_webhook_url: {env('EDA_WEBHOOK_URL')}",
         f"gitlab_url: {env('GITLAB_URL')}",
         f"remediation_app_gitlab_path: {env('REMEDIATION_APP_GITLAB_PATH')}",
@@ -336,7 +345,19 @@ def build_extra_var_yaml() -> str:
         # guid reaches the AO payload and the per-tenant sandbox naming; without
         # it the orchestrator cannot tell which tenant an event came from.
         f"guid: {env('GUID', '')}",
+        f"snow_url: {env('SNOW_URL', '')}",
+        f"snow_svc_url: {env('SNOW_SVC_URL', '')}",
+        # Informative only — classify uses query_tpa.affected_repos, not this flag
+        # to invent apps (multi_app_policy_demo expansion was removed; it discarded TPA).
+        f"blast_radius_mode: {env('BLAST_RADIUS_MODE', 'tpa_affected_repos')}",
     ]
+    gitlab_token = env("GITLAB_TOKEN")
+    if gitlab_token:
+        lines.append(f"gitlab_token: {json.dumps(gitlab_token)}")
+    tpa_client_secret = env("TPA_OAUTH_CLIENT_SECRET")
+    if tpa_client_secret:
+        lines.append(f"tpa_oauth_client_secret: {json.dumps(tpa_client_secret)}")
+
     # Only emit the ao_* vars when AO is actually configured. The orchestrator
     # playbooks do `ao_base_url | default('') | length > 0`, and Jinja's default
     # filter does not replace a defined-but-null value -- an empty YAML scalar

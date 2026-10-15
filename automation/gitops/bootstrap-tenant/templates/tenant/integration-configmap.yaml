@@ -11,7 +11,9 @@ data:
   KEYCLOAK_TPA_REALM: {{ .Values.keycloak.realm | quote }}
   TPA_URL: {{ include "bootstrap-tenant.tpaUrl" . | quote }}
   TPA_TRUSTIFY_URL: {{ include "bootstrap-tenant.tpaUrl" . | quote }}
-  TPA_OAUTH_CLIENT_ID: {{ .Values.tpa.oidc.frontendClientId | quote }}
+  # Query TPA / dataset Jobs use confidential tpa-cli (client_credentials).
+  # tpa-frontend is public and rejects password/direct-access grants.
+  TPA_OAUTH_CLIENT_ID: {{ .Values.tpa.oidc.cliClientId | quote }}
   TPA_SBOM_LABEL: {{ include "bootstrap-tenant.tpaSbomLabel" . | quote }}
   GITLAB_URL: {{ include "bootstrap-tenant.gitlabHost" . | quote }}
   REMEDIATION_APP_GITLAB_PATH: {{ include "bootstrap-tenant.demoProjectPath" . | quote }}
@@ -34,6 +36,8 @@ data:
   OPENCODE_BASE_URL: {{ include "bootstrap-tenant.opencodeBaseUrl" . | quote }}
   OPENCODE_SERVER_USERNAME: {{ .Values.sdlc.opencodeServerUsername | quote }}
   NEXUS_URL: {{ include "bootstrap-tenant.nexusRouteUrl" . | quote }}
+  SNOW_URL: {{ include "bootstrap-tenant.snowUrl" . | quote }}
+  SNOW_SVC_URL: {{ include "bootstrap-tenant.snowSvcUrl" . | quote }}
   AAP_ORG: {{ include "bootstrap-tenant.aapOrg" . | quote }}
   AO_ENABLED: {{ include "bootstrap-tenant.orchestratorEnabled" . | quote }}
   AO_BASE_URL: {{ include "bootstrap-tenant.aoBaseUrl" . | quote }}

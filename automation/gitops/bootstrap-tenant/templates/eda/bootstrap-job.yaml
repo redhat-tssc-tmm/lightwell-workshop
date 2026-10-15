@@ -44,13 +44,31 @@ spec:
               echo "AAP Gateway: ${AAP_CONTROLLER_URL}"
               export AAP_USERNAME=admin
               export AAP_PASSWORD=$(oc get secret aap-admin-password -n "${AAP_NS}" -o jsonpath='{.data.password}' | base64 -d)
+              export TPA_UPLOADER_USERNAME="{{ .Values.username }}"
               export TPA_UPLOADER_PASSWORD="{{ .Values.password }}"
               export OPENCODE_SERVER_PASSWORD="{{ .Values.sdlc.opencodeServerPassword | default .Values.password }}"
+              # Per-tenant TPA uses Keycloak client tpa-cli (client_credentials).
+              export TPA_OAUTH_CLIENT_ID="{{ .Values.tpa.oidc.cliClientId | default "tpa-cli" }}"
+              TPA_NS="{{ include "tpa.namespace" . }}"
+              JOB_NS="{{ include "bootstrap-tenant.jobNamespace" . }}"
+              # Prefer mirrored secret in the job NS; fall back to oidc-cli in tpa-{guid}.
+              export TPA_OAUTH_CLIENT_SECRET=$(oc get secret tpa-oidc-cli -n "${JOB_NS}" -o jsonpath='{.data.client-secret}' 2>/dev/null | base64 -d || true)
+              if [ -z "${TPA_OAUTH_CLIENT_SECRET:-}" ]; then
+                export TPA_OAUTH_CLIENT_SECRET=$(oc get secret oidc-cli -n "${TPA_NS}" -o jsonpath='{.data.client-secret}' 2>/dev/null | base64 -d || true)
+              fi
+              if [ -z "${TPA_OAUTH_CLIENT_SECRET:-}" ]; then
+                echo "WARNING: tpa oidc-cli secret missing — Query TPA will fail until present"
+              fi
               {{- if and .Values.sdlc.orchestrator .Values.sdlc.orchestrator.existingSecret }}
               # Prefer Secret over ConfigMap for AO service-account credentials.
               if [ -n "${AO_CLIENT_ID_FROM_SECRET:-}" ]; then export AO_CLIENT_ID="${AO_CLIENT_ID_FROM_SECRET}"; fi
               if [ -n "${AO_CLIENT_SECRET_FROM_SECRET:-}" ]; then export AO_CLIENT_SECRET="${AO_CLIENT_SECRET_FROM_SECRET}"; fi
               {{- end }}
+              GITLAB_NS="{{ .Values.gitlab.namespace }}"
+              export GITLAB_TOKEN=$(oc get secret root-user-personal-token -n "${GITLAB_NS}" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+              if [ -z "${GITLAB_TOKEN:-}" ]; then
+                echo "WARNING: GitLab root PAT not found — policy lookup / merge JTs will fail until present"
+              fi
               exec python3 /work/bootstrap-aap-eda.py
           envFrom:
             - configMapRef:

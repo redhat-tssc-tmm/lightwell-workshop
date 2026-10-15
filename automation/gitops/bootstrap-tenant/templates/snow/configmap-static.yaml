@@ -1,0 +1,21 @@
+{{- if not ((.Values.snow | default dict).image) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snow-mock-static
+  namespace: {{ include "bootstrap-tenant.snowNamespace" . }}
+  labels:
+    app: snow-mock
+    lightwell.guid: {{ .Values.guid | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  index.html: |
+{{ .Files.Get "files/snow-mock/static/index.html" | indent 4 }}
+  app.js: |
+{{ .Files.Get "files/snow-mock/static/app.js" | indent 4 }}
+  styles.css: |
+{{ .Files.Get "files/snow-mock/static/styles.css" | indent 4 }}
+binaryData:
+  servicenow.png: {{ .Files.Get "files/snow-mock/static/servicenow.png" | b64enc }}
+{{- end }}

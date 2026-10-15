@@ -119,7 +119,7 @@ spec:
               {{- end }}
 
               seed_app() {
-                local APP_NAME="$1" SEED_REPO="$2" SEED_REF="$3"
+                local APP_NAME="$1" SEED_REPO="$2" SEED_REF="$3" POLICY_JSON="${4:-}"
                 local PROJECT_PATH="${GROUP}/${APP_NAME}"
 
                 echo "Creating project ${PROJECT_PATH}..."
@@ -151,6 +151,14 @@ spec:
                 git checkout -B "${DEFAULT_BRANCH}"
                 git config user.email "lightwell-seed@example.com"
                 git config user.name "lightwell-tenant-seed"
+                if [ -n "${POLICY_JSON}" ]; then
+                  mkdir -p .lightwell
+                  printf '%s\n' "${POLICY_JSON}" > .lightwell/policy.json
+                  git add .lightwell/policy.json
+                  git -c user.email="lightwell-seed@example.com" -c user.name="lightwell-tenant-seed" \
+                    commit --allow-empty -m "Add .lightwell/policy.json for Lightwell remediation routing" || true
+                  echo "Injected .lightwell/policy.json for ${APP_NAME}"
+                fi
                 PUSH_URL="${GITLAB_HOST}/${PROJECT_PATH}.git"
                 PUSH_URL_AUTH="$(echo "${PUSH_URL}" | sed "s#https://#https://oauth2:${ROOT_TOKEN}@#" | sed "s#http://#http://oauth2:${ROOT_TOKEN}@#")"
                 git remote add gitlab "${PUSH_URL_AUTH}"
@@ -166,7 +174,7 @@ spec:
               }
 
               {{- range .Values.gitlab.appSeeds }}
-              seed_app "{{ .name }}" "{{ .sourceRepo }}" "{{ .sourceRef }}"
+              seed_app "{{ .name }}" "{{ .sourceRepo }}" "{{ .sourceRef }}" {{ if .policy }}'{{ .policy | toJson }}'{{ else }}''{{ end }}
               {{- end }}
 
               # Set up MR webhook on the AI remediation target (wire-transfer-svc)

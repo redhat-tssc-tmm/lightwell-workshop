@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ServiceNow</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="sn-header">
+    <div class="sn-header-left">
+        <a href="#overview"><img src="/static/servicenow.png" alt="ServiceNow" class="sn-logo"></a>
+        <nav class="sn-nav">
+            <a href="#overview" class="sn-nav-item">All</a>
+            <a href="#overview" class="sn-nav-item">Favorites</a>
+            <a href="#overview" class="sn-nav-item">History</a>
+            <a href="#overview" class="sn-nav-item">Workspaces</a>
+        </nav>
+    </div>
+    <div class="sn-header-center">
+        <span class="sn-header-pill" id="headerPill">Incident Overview &#9734;</span>
+    </div>
+    <div class="sn-header-right">
+        <div class="sn-search-wrapper">
+            <span class="sn-search-icon">&#128269;</span>
+            <input type="text" class="sn-search" placeholder="Search">
+            <button class="sn-search-dropdown">&#9660;</button>
+        </div>
+        <div class="sn-header-icons">
+            <button class="sn-icon-btn" title="Create New">&#43;</button>
+            <button class="sn-icon-btn" title="Connect">&#128279;</button>
+            <button class="sn-icon-btn" title="Help">&#63;</button>
+            <button class="sn-icon-btn" title="Notifications">&#128276;</button>
+            <div class="sn-avatar" id="userAvatar"></div>
+        </div>
+    </div>
+</header>
+
+<!-- ===== OVERVIEW VIEW ===== -->
+<div id="view-overview" class="sn-view">
+    <div class="sn-subheader">
+        <span class="sn-hamburger">&#9776;</span>
+        <span class="sn-page-title">Incident Overview</span>
+        <span class="sn-dropdown-arrow">&#9662;</span>
+    </div>
+    <div class="sn-dashboard">
+        <div class="sn-dashboard-main">
+            <!-- Row 1: 3 hero cards -->
+            <div class="sn-card-row">
+                <div class="sn-card sn-card-hero" id="card-opened-today">
+                    <div class="sn-card-header">Incidents Opened Today</div>
+                    <div class="sn-hero-number sn-hero-accent" id="stat-opened-today">-</div>
+                </div>
+                <div class="sn-card sn-card-hero">
+                    <div class="sn-card-header">Unassigned Incidents</div>
+                    <div class="sn-hero-number" id="stat-unassigned">-</div>
+                </div>
+                <div class="sn-card sn-card-hero">
+                    <div class="sn-card-header">Overdue Incidents</div>
+                    <div class="sn-hero-number sn-hero-zero" id="stat-overdue">-</div>
+                </div>
+            </div>
+            <!-- Row 2: 3 hero cards -->
+            <div class="sn-card-row">
+                <div class="sn-card sn-card-hero" id="card-open-incidents">
+                    <div class="sn-card-header">Open Incidents</div>
+                    <div class="sn-hero-number" id="stat-open">-</div>
+                </div>
+                <div class="sn-card sn-card-hero" id="card-not-updated-7d">
+                    <div class="sn-card-header">Incidents not updated for 7 days</div>
+                    <div class="sn-hero-number" id="stat-not-updated">-</div>
+                </div>
+                <div class="sn-card sn-card-hero" id="card-older-30d">
+                    <div class="sn-card-header">Open Incidents older than 30 Days</div>
+                    <div class="sn-hero-number" id="stat-older-30">-</div>
+                </div>
+            </div>
+            <!-- Row 3: Charts -->
+            <div class="sn-card-row sn-chart-row">
+                <div class="sn-card sn-card-chart">
+                    <div class="sn-card-header">Open Incidents - Grouped</div>
+                    <div class="sn-chart-container">
+                        <canvas id="chart-open-grouped"></canvas>
+                    </div>
+                </div>
+                <div class="sn-card sn-card-chart">
+                    <div class="sn-card-header">Open Incidents older than 30 Days - Grouped</div>
+                    <div class="sn-chart-container">
+                        <canvas id="chart-older-grouped"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Sidebar -->
+        <div class="sn-dashboard-sidebar">
+            <div class="sn-sidebar-section">
+                <div class="sn-sidebar-title">Incident Priority</div>
+                <select class="sn-select">
+                    <option>All</option>
+                    <option>1 - Critical</option>
+                    <option>2 - High</option>
+                    <option>3 - Moderate</option>
+                    <option>4 - Low</option>
+                    <option>5 - Planning</option>
+                </select>
+            </div>
+            <div class="sn-sidebar-section">
+                <div class="sn-sidebar-title">Incident State</div>
+                <div class="sn-checkbox-group" id="stateFilters">
+                    <label class="sn-checkbox"><input type="checkbox"> All</label>
+                    <label class="sn-checkbox"><input type="checkbox" checked> New</label>
+                    <label class="sn-checkbox"><input type="checkbox"> Active</label>
+                    <label class="sn-checkbox"><input type="checkbox"> Awaiting Problem</label>
+                    <label class="sn-checkbox"><input type="checkbox"> Awaiting User Info</label>
+                    <label class="sn-checkbox"><input type="checkbox"> Awaiting Evidence</label>
+                    <label class="sn-checkbox"><input type="checkbox"> Resolved</label>
+                    <label class="sn-checkbox"><input type="checkbox"> Closed</label>
+                </div>
+            </div>
+            <div class="sn-sidebar-section">
+                <div class="sn-sidebar-title">Incident Assignment Group</div>
+                <select class="sn-select">
+                    <option>All</option>
+                </select>
+                <input type="text" class="sn-filter-input" placeholder="">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== LIST VIEW ===== -->
+<div id="view-list" class="sn-view" style="display:none">
+    <div class="sn-subheader sn-subheader-list">
+        <div class="sn-subheader-left">
+            <span class="sn-hamburger">&#9776;</span>
+            <span class="sn-filter-icon">&#9660;</span>
+            <span class="sn-list-title">Incidents</span>
+            <span class="sn-list-view-label">View: Self Service</span>
+            <select class="sn-select sn-select-small">
+                <option>Opened</option>
+                <option>Updated</option>
+                <option>Number</option>
+            </select>
+            <input type="text" class="sn-header-search" placeholder="Search">
+        </div>
+        <div class="sn-subheader-right">
+            <button class="sn-icon-btn-sm">&#9733;</button>
+            <button class="sn-icon-btn-sm">&#9881;</button>
+            <select class="sn-select sn-select-small sn-actions-select">
+                <option>Actions on selected rows...</option>
+            </select>
+            <button class="sn-btn sn-btn-outline">Create with Lens</button>
+            <button class="sn-btn sn-btn-primary">New</button>
+        </div>
+    </div>
+    <div class="sn-breadcrumb" id="listBreadcrumb">All &gt; Incident state in New &gt; Opened on Today</div>
+    <div class="sn-table-wrapper">
+        <table class="sn-table">
+            <thead>
+                <tr>
+                    <th class="sn-th-check"><input type="checkbox"></th>
+                    <th class="sn-th-search">&#128269;</th>
+                    <th>Number<br><input type="text" class="sn-col-search" placeholder="Search"></th>
+                    <th>Opened &#9660;<br><input type="text" class="sn-col-search" placeholder="Search"></th>
+                    <th>Short description<br><input type="text" class="sn-col-search" placeholder="Search"></th>
+                    <th>State<br><input type="text" class="sn-col-search" placeholder="Search"></th>
+                    <th>Created by<br><input type="text" class="sn-col-search" placeholder="Search"></th>
+                    <th>Created<br><input type="text" class="sn-col-search" placeholder="Search"></th>
+                </tr>
+            </thead>
+            <tbody id="incidentTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== DETAIL VIEW ===== -->
+<div id="view-detail" class="sn-view" style="display:none">
+    <div class="sn-subheader sn-subheader-detail">
+        <div class="sn-subheader-left">
+            <button class="sn-back-btn" id="backBtn">&#9664;</button>
+            <span class="sn-hamburger">&#9776;</span>
+            <div class="sn-detail-title-block">
+                <span class="sn-detail-title">Incident</span>
+                <span class="sn-detail-user" id="detailUser"></span>
+                <span class="sn-detail-view-label">View: Self Service</span>
+            </div>
+        </div>
+        <div class="sn-subheader-right">
+            <button class="sn-icon-btn-sm">&#9998;</button>
+            <button class="sn-icon-btn-sm">&#43;</button>
+            <button class="sn-icon-btn-sm">&#9776;</button>
+            <button class="sn-icon-btn-sm">&#8943;</button>
+            <button class="sn-btn sn-btn-outline">Discuss</button>
+            <button class="sn-btn sn-btn-outline">Follow</button>
+            <button class="sn-btn sn-btn-outline">Update</button>
+            <button class="sn-btn sn-btn-outline">Update with Lens</button>
+            <button class="sn-btn sn-btn-outline">Resolve Incident</button>
+            <button class="sn-btn sn-btn-outline sn-btn-danger">Delete</button>
+        </div>
+    </div>
+    <div class="sn-detail-body" id="detailBody">
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

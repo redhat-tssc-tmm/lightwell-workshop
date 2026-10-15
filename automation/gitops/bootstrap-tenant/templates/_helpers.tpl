@@ -130,6 +130,20 @@ remediation never runs. Default to the legacy rulebook unless AO is configured.
 {{- printf "snow-%s" .Values.guid -}}
 {{- end -}}
 
+{{- /* Public Route URL for snow-mock (edge TLS). Override with snow.url if needed. */ -}}
+{{- define "bootstrap-tenant.snowUrl" -}}
+{{- if ((.Values.snow | default dict).url) -}}
+{{- .Values.snow.url -}}
+{{- else -}}
+{{- printf "https://snow-mock-%s.%s" (include "bootstrap-tenant.snowNamespace" .) .Values.deployer.domain -}}
+{{- end -}}
+{{- end -}}
+
+{{- /* In-cluster Service URL for AAP / AO job templates. */ -}}
+{{- define "bootstrap-tenant.snowSvcUrl" -}}
+{{- printf "http://snow-mock.%s.svc:8080" (include "bootstrap-tenant.snowNamespace" .) -}}
+{{- end -}}
+
 {{- define "bootstrap-tenant.renovateNamespace" -}}
 {{- printf "%s-renovate" .Values.username -}}
 {{- end -}}

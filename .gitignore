@@ -13,3 +13,7 @@ lightwell-demo
 lightwell-tenant-config
 kubeconfig
 *.kubeconfig
+openspec/
+
+.cursor
+
