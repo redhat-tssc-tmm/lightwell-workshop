@@ -221,6 +221,26 @@ Copy and fill for each new decision:
 | **Decision** | Add OCI registry support to the existing per-tenant Nexus: a Docker Bearer Token Realm, an OCI hosted repository (`oci`) on port 5000, a dedicated OCI Route (`nexus-oci-{guid}.{domain}`), and a short-URL Route for the Nexus UI (`nexus-{guid}.{domain}`). The `nexus-reconcile.py` script creates the OCI repo and enables the token realm idempotently. Storage increased from 20Gi to 50Gi. Authentication: anonymous read, admin credentials for push (reusing the existing Nexus admin Secret). Nexus bumped from 3.76.1 to 3.96.4-ubi for native OCI 1.1 referrers support (needed for Tekton Chains attestation storage without tag-based fallback). The reconcile script accepts the Community Edition EULA automatically (required since 3.77). |
 | **Consequences** | Each tenant's Nexus PVC grows from 20Gi to 50Gi. Existing tenants keep the old PVC size unless manually expanded. The OCI Route uses edge TLS termination — pipeline `buildah` tasks must set `TLSVERIFY=false` or trust the cluster CA. The port name `oci-http` replaces the old `http` on the StatefulSet/Service (existing port 8081 renamed to `nexus-http`). Nexus 3.77+ (Community Edition) has a 40,000-component limit and 100,000 requests/day — sufficient for workshop use. The EULA must be accepted before any API calls work; the reconcile script handles this idempotently. |
 
+## ADR-020 — Pipelines-as-Code for per-tenant build pipelines
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-14 |
+| **Title** | Use Pipelines-as-Code with per-tenant Repository CRs for automated builds |
+| **Context** | Each tenant has 3 Java app repos in GitLab that need automated build pipelines triggered on merge to `main`. The pipeline must build the app (Maven), build a container image with OCI labels (for SBOM source tracking), push to the tenant's Nexus OCI registry, generate an SBOM with syft, and upload the SBOM to the tenant's TPA. Pipeline definitions must live in the repo (`.tekton/`) so students can see and modify them. |
+| **Decision** | Use Pipelines-as-Code (PaC) with per-tenant infrastructure in `bootstrap-tenant/templates/build/`. Each tenant gets a `build-{guid}` namespace with 3 PaC Repository CRs (one per app), GitLab push webhooks pointing at the PaC controller, and secrets for GitLab PAT, Nexus push credentials, and TPA OIDC. Repository CRs pass tenant-specific params (`image-registry`, `image-name`, `tpa-url`, `issuer-url`) so the `.tekton/` PipelineRun YAML is identical across all tenants. The PipelineRun uses separate Tekton tasks: `git-clone` → `maven` → `buildah` (with `BUILD_EXTRA_ARGS` for OCI labels) → inline `generate-upload-sbom` (syft + TPA upload). Tekton Chains signs the result automatically (ADR-017). |
+| **Consequences** | Each tenant gets an additional namespace (`build-{guid}`) and 2 setup Jobs (secrets + webhooks). The `.tekton/` directory and `Containerfile` must be added to the 3 source repos on GitHub (`redhat-ads-tech/`). PaC Repository CR `params` feature (supported in Pipelines 1.24) eliminates tenant-specific templating in the pipeline YAML. WAR apps need a Tomcat-based Containerfile; the Spring Boot app uses a simpler JAR Containerfile. Build toggle: `build.enabled` in values. |
+
+## ADR-021 — Maven builds via Nexus group with Lightwell hosted repos
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-14 |
+| **Title** | Route Maven builds through Nexus group with Lightwell hosted repositories |
+| **Context** | Pipeline Maven builds pull from Maven Central directly, missing the tenant's Nexus cache and unable to resolve Lightwell `-rhlw-*` rebuild artifacts. Each tenant also creates redundant `maven-central-{guid}` and `maven-releases-{guid}` repos that duplicate the default Nexus repos — since Nexus is already per-tenant, the guid suffix adds no isolation value. The official Lightwell Network publishes remediated and validated packages under `packages.redhat.com/lightwell/java/{remediated,validated}/`. |
+| **Decision** | Remove `maven-central-{guid}` and `maven-releases-{guid}` from the repositories ConfigMap. Create two hosted repos aligned with official Lightwell Network naming: `lightwell-remediated` and `lightwell-validated`. Update the default `maven-public` group to include them (search order: `lightwell-remediated`, `lightwell-validated`, `maven-releases`, `maven-snapshots`, `maven-central`). The pipeline's Maven task uses `MAVEN_MIRROR_URL` pointing at `http://nexus.lightwell-nexus-{guid}.svc:8081/repository/maven-public` (cluster-internal, passed via PaC Repository CR param). All Maven downloads route through this single group URL — standard deps cache in `maven-central`, `-rhlw-*` versions resolve from `lightwell-remediated`. |
+| **Consequences** | Lightwell proxy repos (with credentials) stay in the ConfigMap for the EDA/OpenCode remediation pipeline. The hosted `lightwell-remediated`/`lightwell-validated` repos need to be seeded with `-rhlw-*` artifacts separately. Existing tenants keep the old `maven-central-{guid}`/`maven-releases-{guid}` repos (harmless, unused). Maven builds are faster on repeat runs due to Nexus caching. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -248,3 +268,5 @@ Copy and fill for each new decision:
 | TAS + Tekton Chains keyless signing | ADR-017 |
 | Per-tenant TPA via Helm chart | ADR-018 |
 | OCI container registry in Nexus | ADR-019 |
+| PaC build pipelines per tenant | ADR-020 |
+| Maven via Nexus group + Lightwell repos | ADR-021 |

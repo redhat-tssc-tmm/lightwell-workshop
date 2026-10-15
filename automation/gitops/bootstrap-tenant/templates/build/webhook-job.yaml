@@ -1,0 +1,96 @@
+{{- if .Values.build.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-setup-webhooks
+  namespace: build-{{ .Values.guid }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      serviceAccountName: build-setup
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-pac-token
+                  key: token
+            - name: WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-pac-webhook-secret
+                  key: webhook-secret
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              GUID="{{ .Values.guid }}"
+              GITLAB_HOST="https://gitlab-{{ .Values.gitlab.namespace | default "gitlab" }}.{{ .Values.deployer.domain }}"
+              GROUP="{{ include "bootstrap-tenant.gitlabGroup" . }}"
+              PAC_URL="https://pipelines-as-code-controller-openshift-pipelines.{{ .Values.deployer.domain }}"
+              APPS="{{ range .Values.gitlab.appSeeds }}{{ .name }} {{ end }}"
+
+              for APP_NAME in ${APPS}; do
+                echo "Setting up webhook for ${GROUP}/${APP_NAME}..."
+
+                PROJECT_ID=$(curl -sk -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+                  "${GITLAB_HOST}/api/v4/projects?search=${APP_NAME}&search_namespaces=true" \
+                  | python3 -c "
+              import sys, json
+              projects = [p for p in json.load(sys.stdin) if p['path_with_namespace'] == '${GROUP}/${APP_NAME}']
+              print(projects[0]['id'] if projects else '')
+              ")
+
+                if [ -z "${PROJECT_ID}" ]; then
+                  echo "  WARNING: project ${GROUP}/${APP_NAME} not found, skipping."
+                  continue
+                fi
+
+                EXISTING=$(curl -sk -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+                  "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/hooks" \
+                  | python3 -c "
+              import sys, json
+              hooks = [h for h in json.load(sys.stdin) if '${PAC_URL}' in h.get('url', '')]
+              print('yes' if hooks else '')
+              ")
+
+                if [ -n "${EXISTING}" ]; then
+                  echo "  Webhook already exists for ${APP_NAME}."
+                  continue
+                fi
+
+                HTTP_CODE=$(curl -sk -o /dev/null -w '%{http_code}' \
+                  -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+                  -X POST "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/hooks" \
+                  -d "url=${PAC_URL}" \
+                  -d "push_events=true" \
+                  -d "merge_requests_events=false" \
+                  -d "token=${WEBHOOK_SECRET}" \
+                  -d "enable_ssl_verification=false")
+
+                if [ "${HTTP_CODE}" = "201" ]; then
+                  echo "  Webhook created for ${APP_NAME}."
+                else
+                  echo "  WARNING: webhook creation returned HTTP ${HTTP_CODE} for ${APP_NAME}."
+                fi
+              done
+
+              echo "Webhook setup complete."
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+{{- end }}

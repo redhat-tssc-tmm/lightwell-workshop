@@ -25,22 +25,5 @@ data:
         "requires_auth": true,
         "version_policy": "RELEASE",
         "layout_policy": "STRICT"
-      },
-      {
-        "name": "maven-central-{{ .Values.guid }}",
-        "type": "proxy",
-        "remote_url": "https://repo1.maven.org/maven2/",
-        "description": "Maven Central",
-        "requires_auth": false,
-        "version_policy": "RELEASE",
-        "layout_policy": "STRICT"
-      },
-      {
-        "name": "maven-releases-{{ .Values.guid }}",
-        "type": "hosted",
-        "description": "Hosted Maven releases",
-        "write_policy": "ALLOW",
-        "version_policy": "RELEASE",
-        "layout_policy": "STRICT"
       }
     ]
