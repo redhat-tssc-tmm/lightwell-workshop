@@ -84,6 +84,8 @@
   "ignoreWords": [
     "adoc",
     "xref",
+    "Exploitability",
+    "mgmt",
     "ifndef",
     "endif",
     "ifdef",

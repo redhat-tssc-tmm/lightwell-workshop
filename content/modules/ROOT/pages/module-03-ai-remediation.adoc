@@ -13,7 +13,7 @@ This module walks through *Path 2* — enterprise-grade automated remediation. A
 This path targets two of your applications:
 
 * *wire-transfer-svc* — high risk, customer-facing. The AI flags it for human approval.
-* *benefits-mgmt-app* — low risk, internal-only. The AI auto-approves it.
+* `benefits-mgmt-app` — low risk, internal-only. The AI auto-approves it.
 
 == The Full Automation Pipeline
 
@@ -99,7 +99,7 @@ This is the audit trail that compliance teams need — every step is timestamped
 
 The AI agent evaluates each application against its risk profile:
 
-*benefits-mgmt-app* (low risk):
+`benefits-mgmt-app` (low risk):
 
 * Internal application, no customer data exposure
 * The dependency bump is a compatible `.rhlw` rebuild — same API, same behaviour

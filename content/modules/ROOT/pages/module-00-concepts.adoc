@@ -132,7 +132,7 @@ flowchart LR
   style SN fill:#fff3cd,stroke:#997404
 ----
 
-You will use this path to remediate the *wire-transfer-svc* (high risk, needs your approval) and the *benefits-mgmt-app* (low risk, auto-approved by the AI).
+You will use this path to remediate the `wire-transfer-svc` (high risk, needs your approval) and the `benefits-mgmt-app` (low risk, auto-approved by the AI).
 
 === What They Share
 
