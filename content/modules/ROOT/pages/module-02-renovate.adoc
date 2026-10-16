@@ -128,7 +128,7 @@ NOTE: Under the hood, the Renovate operator manages Kubernetes `RenovateJob` and
 
 == Viewing Your Job in the Renovate Web UI
 
-Open the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate operator web UI^] and log in with your OpenShift credentials (`{user}` / `{password}`). You will see your RenovateJob listed — look for `acme-{guid}/report-generator-app`.
+Open the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate operator web UI^] and log in with your OpenShift credentials (`{user}` / `{password}`). If you do not see `acme-{guid}/report-generator-app` listed yet, click *Run Discovery* to force the operator to scan for your newly created RenovateJob. After a few seconds, refresh the page and your project should appear.
 
 image::renovate-ui-job-list.png[RenovateJob listed in the web UI]
 
@@ -136,7 +136,7 @@ Since there is no Lightwell remediation in Nexus yet, the first run will find no
 
 image::renovate-ui-trigger.png[Triggering a Renovate run from the web UI]
 
-Click the *Logs* button to view the running log or the log from a completed run. You will see Renovate discover your repository, scan `pom.xml`, query Nexus for each dependency, and find no Lightwell updates available.
+Click the *Logs* button to view the running log or the log from a completed run. You will see Renovate discover your repository, scan `pom.xml`, query Nexus for each dependency, and find no Lightwell updates available. Expand the *Printing report* log item to see details on which packages were scanned and their current versions.
 
 image::renovate-ui-log-no-updates.png[Renovate log showing no updates found]
 
@@ -151,9 +151,10 @@ The OSV metadata is key: Red Hat publishes machine-readable https://ossf.github.
 
 In this lab, you will play the role of the Lightwell Network and publish a new remediation for Jackson Databind (one of the vulnerable dependencies in `report-generator-app`). Run the following command in the terminal on the right:
 
-[source,bash, role=execute]
+[source,bash,role=execute,subs=attributes+]
 ----
-bash /showroom/repo/content/modules/ROOT/attachments/publish-remediation.sh \
+curl -sSL https://showroom-{user}-showroom.{openshift_cluster_ingress_domain}/modules/_attachments/publish-remediation.sh \
+  | bash -s -- \
   com.fasterxml.jackson.core:jackson-databind:2.13.5 \
   rhlw-00001 \
   "Jackson Databind"
