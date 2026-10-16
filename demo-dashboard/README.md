@@ -11,7 +11,7 @@ help-app `pom.xml`, whether each version is already cached by Nexus, and a
 timeline with links to EDA, AAP, TPA, OpenCode, and GitLab. **Remediate**
 fetches a real artifact through Nexus. The resulting `component CREATED`
 webhook is a one-shot event for that tenant and version. See
-[`../architecture.md`](../architecture.md) for the full flow.
+[`../ao-trigger-helper/docs/architecture.md`](../ao-trigger-helper/docs/architecture.md) for the full flow.
 
 ## Run
 

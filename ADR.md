@@ -8,7 +8,7 @@ same change.
 - **HANDOFF.md** — short operational list (what’s done / next / gotchas).
 - **ADR.md** — why we chose it (context, decision, consequences).
 
-Last synced with HANDOFF: 2026-10-16 (ADR-031 trigger-script)
+Last synced with HANDOFF: 2026-10-16 (ADR-031 ao-trigger-helper)
 
 ---
 
@@ -340,8 +340,8 @@ Copy and fill for each new decision:
 | **Date** | 2026-10-16 |
 | **Title** | Repo-local script to fire Path 2 (AO) via EDA without Nexus upload |
 | **Context** | Demo / operator smoke needs a repeatable way to start the multi-app AO canvas for both approval policies. Real Nexus webhooks are often missing (empty Lightwell Network creds) and a cached GAV cannot re-fire. Showroom `inject-remediation.sh` uploads to Nexus for Renovate (Path 1), not EDA. |
-| **Decision** | Keep a small showcase under [`trigger-script/`](trigger-script/): `trigger-nexus-webhook.sh` POSTs a Nexus-shaped `action=CREATED` body to the tenant EDA route (discovered from `tenant-integration` / Route). Two cases map to Acme policies — `needs-approval` → `com.h2database:h2` / wire-transfer; `auto-approve` → `org.flywaydb:flyway-core` / benefits — with unique `.rhlw-HHMMSS` versions. Document usage in [`trigger-script/README.md`](trigger-script/README.md). |
-| **Consequences** | Operators can demo AO without seeding Nexus. Auto-approve still depends on TPA SBOM coverage for the chosen GAV (override `AUTO_APPROVE_GAV` if needed). Script is not student Showroom content; Path 1 keep using `inject-remediation.sh`. |
+| **Decision** | Keep an AO Path 2 operator helper under [`ao-trigger-helper/`](ao-trigger-helper/): (1) `trigger-nexus-webhook.sh` POSTs a Nexus-shaped `action=CREATED` body to the tenant EDA route (discovered from `tenant-integration` / Route). Two cases map to Acme policies — `needs-approval` → `com.h2database:h2` / wire-transfer; `auto-approve` → `org.flywaydb:flyway-core` / benefits — with unique `.rhlw-HHMMSS` versions. (2) `reset-demo-repos.sh` re-seeds `acme-<guid>/*` from the upstream GitHub sources (same as `create-gitlab-tenant`), re-injects `.lightwell/policy.json`, force-pushes `main`, and cleans open MRs / `update-artifact-*` branches. (3) AO-context docs in [`ao-trigger-helper/docs/`](ao-trigger-helper/docs/): `DEMO-FLOW.md` (intended Path 2 narrative), `architecture.md` (per-tenant wiring), `DEMO-FLOW-INVESTIGATION.md` (dated live vs chart snapshot). Entry: [`ao-trigger-helper/README.md`](ao-trigger-helper/README.md). |
+| **Consequences** | Operators can demo AO without seeding Nexus and reset GitLab apps between runs without re-provisioning the tenant. Docs stay with the helper so Path 2 wiring / investigation are not confused with Showroom or Path 1. Auto-approve still depends on TPA SBOM coverage for the chosen GAV (override `AUTO_APPROVE_GAV` if needed). Scripts are not student Showroom content; Path 1 keeps using `inject-remediation.sh`. Upstream GitHub repos are never modified. |
 
 ---
 

@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-16 (trigger-script showcase for AO webhooks)
+Last updated: 2026-10-16 (demo investigation re-run on `5trcs`/`cng2l`)
 
 ## Where the pieces live
 
@@ -18,14 +18,17 @@ Last updated: 2026-10-16 (trigger-script showcase for AO webhooks)
 | Catalog item `lb1815-lightwell-tenant` | `rhpds/agnosticv`, `rh1-2027/` — via PR |
 | OpenCode agent prompts, EDA rulebooks, AAP playbooks | `rhpds/lw-sdlc-opencode` — via PR |
 | Acme sample apps (3) | `redhat-ads-tech/{wire-transfer-svc,benefits-mgmt-app,report-generator-app}` |
-| AO Nexus webhook showcase script | this repo — [`trigger-script/`](trigger-script/) |
+| AO Path 2 operator helper + docs | this repo — [`ao-trigger-helper/`](ao-trigger-helper/) (scripts + [`docs/`](ao-trigger-helper/docs/)) |
 
 ## Recently done
 
-- **AO webhook showcase script** in [`trigger-script/`](trigger-script/) —
-  POSTs Nexus-shaped `CREATED` to the tenant EDA route for
-  `needs-approval` (h2 → wire-transfer) and `auto-approve` (flyway → benefits).
-  See [`trigger-script/README.md`](trigger-script/README.md).
+- **AO Path 2 operator helper** in [`ao-trigger-helper/`](ao-trigger-helper/) —
+  scripts POST Nexus-shaped `CREATED` to EDA (`needs-approval` / `auto-approve`)
+  and reset Acme repos. AO-context docs:
+  [`DEMO-FLOW.md`](ao-trigger-helper/docs/DEMO-FLOW.md) (narrative),
+  [`architecture.md`](ao-trigger-helper/docs/architecture.md) (wiring),
+  [`DEMO-FLOW-INVESTIGATION.md`](ao-trigger-helper/docs/DEMO-FLOW-INVESTIGATION.md)
+  (live snapshot). Index: [`docs/README.md`](ao-trigger-helper/docs/README.md).
   → [ADR-031](ADR.md#adr-031--showcase-nexus-webhook-trigger-script)
 
 - **OpenCode web UI shows agent sessions.** Route `opencode-ui` now targets
@@ -237,6 +240,15 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
    (`verifier_use_opencode: false`) until the ephemeral OpenCode skill is
    fixed in the image, then flip to `true`.
    → [ADR-025](ADR.md#adr-025--drop-legacy-gitlab-mr-resume-verifier)
+
+0b. **Demo investigation re-run (2026-10-16)** on `cluster-5trcs` /
+   `cng2l` — full snapshot in
+   [`ao-trigger-helper/docs/DEMO-FLOW-INVESTIGATION.md`](ao-trigger-helper/docs/DEMO-FLOW-INVESTIGATION.md)
+   §0/§0b. Top gaps: (1) push local AO snow-bake (`b06b131`) before Argo
+   sync or OutOfSync CM reverts Comments; (2) TPA classify mis-routes
+   flyway → wire-transfer (benefits auto-approve never loops);
+   (3) natural Nexus webhooks still absent; (4) EDA SCM hash ≠ Controller
+   playbook rev on `lw-sdlc-opencode`.
 
 1. **Automation Orchestrator** is installed by `bootstrap-infra` (AO CR +
    CNPG) and wired per tenant via `sdlc.orchestrator` (`enabled`, webhook
