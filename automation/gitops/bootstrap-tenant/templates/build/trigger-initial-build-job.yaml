@@ -1,0 +1,57 @@
+{{- if .Values.build.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-trigger-initial
+  namespace: build-{{ .Values.guid }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      serviceAccountName: build-setup
+      restartPolicy: OnFailure
+      containers:
+        - name: trigger
+          image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-pac-token
+                  key: token
+            - name: GITLAB_HOST
+              value: "https://gitlab-{{ .Values.gitlab.namespace | default "gitlab" }}.{{ .Values.deployer.domain }}"
+            - name: GROUP
+              value: {{ include "bootstrap-tenant.gitlabGroup" . | quote }}
+            - name: GUID
+              value: {{ .Values.guid | quote }}
+            - name: NEXUS_OCI_HOST
+              value: "nexus-oci-{{ .Values.guid }}.{{ .Values.deployer.domain }}"
+            - name: TPA_HOST
+              value: "tpa-{{ .Values.guid }}.{{ .Values.deployer.domain }}"
+            - name: APPS
+              value: "{{ range .Values.gitlab.appSeeds }}{{ .name }} {{ end }}"
+          command:
+            - /bin/bash
+            - /scripts/trigger-builds.sh
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: scripts
+          configMap:
+            name: build-trigger-script
+            defaultMode: 0555
+{{- end }}
