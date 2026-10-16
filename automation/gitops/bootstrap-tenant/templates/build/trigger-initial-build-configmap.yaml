@@ -1,0 +1,123 @@
+{{- if .Values.build.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-trigger-script
+  namespace: build-{{ .Values.guid }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  trigger-builds.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    : "${GITLAB_HOST:?}" "${GITLAB_TOKEN:?}" "${GROUP:?}" "${APPS:?}"
+    : "${NEXUS_OCI_HOST:?}" "${TPA_HOST:?}" "${GUID:?}"
+
+    # ---- Wait for Nexus OCI (hard requirement) ----
+    echo "Waiting for Nexus OCI registry..."
+    NEXUS_READY=false
+    for i in $(seq 1 30); do
+      HTTP=$(curl -sk -o /dev/null -w "%{http_code}" "https://${NEXUS_OCI_HOST}/v2/_catalog" 2>/dev/null) || true
+      if [ "${HTTP}" = "200" ]; then
+        echo "  Nexus OCI ready."
+        NEXUS_READY=true
+        break
+      fi
+      echo "  Attempt ${i}/30: HTTP ${HTTP:-none}, waiting 10s..."
+      sleep 10
+    done
+    if [ "${NEXUS_READY}" != "true" ]; then
+      echo "ERROR: Nexus OCI not ready after 5 minutes. Will retry." >&2
+      exit 1
+    fi
+
+    # ---- Wait for TPA (hard requirement) ----
+    echo "Waiting for TPA server..."
+    TPA_READY=false
+    for i in $(seq 1 30); do
+      HTTP=$(curl -sk -o /dev/null -w "%{http_code}" "https://${TPA_HOST}/.well-known/trustify" 2>/dev/null) || true
+      if [[ "${HTTP}" =~ ^(200|401|403) ]]; then
+        echo "  TPA ready."
+        TPA_READY=true
+        break
+      fi
+      echo "  Attempt ${i}/30: HTTP ${HTTP:-none}, waiting 10s..."
+      sleep 10
+    done
+    if [ "${TPA_READY}" != "true" ]; then
+      echo "ERROR: TPA not ready after 5 minutes. Will retry." >&2
+      exit 1
+    fi
+
+    # ---- Push trigger commit to each repo ----
+    for APP_NAME in ${APPS}; do
+      echo "Triggering build for ${GROUP}/${APP_NAME}..."
+
+      PROJECT_ID=$(curl -sk -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        "${GITLAB_HOST}/api/v4/projects?search=${APP_NAME}&search_namespaces=true" \
+        | python3 -c "
+    import sys, json
+    projects = [p for p in json.load(sys.stdin) if p['path_with_namespace'] == '${GROUP}/${APP_NAME}']
+    print(projects[0]['id'] if projects else '')
+    ")
+
+      if [ -z "${PROJECT_ID}" ]; then
+        echo "  WARNING: project not found, skipping."
+        continue
+      fi
+
+      # Check if trigger commit already exists (idempotent)
+      EXISTING=$(curl -sk -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/repository/commits?ref_name=main&per_page=5" \
+        | python3 -c "
+    import sys, json
+    commits = json.load(sys.stdin)
+    print('yes' if any('v1.0-build' in c.get('message','') for c in commits) else '')
+    ")
+
+      if [ -n "${EXISTING}" ]; then
+        echo "  Trigger commit already exists, skipping."
+        continue
+      fi
+
+      # Try update first (file may already exist from a previous partial run)
+      HTTP_CODE=$(curl -sk -o /dev/null -w '%{http_code}' \
+        -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" -X POST \
+        "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/repository/commits" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"branch\": \"main\",
+          \"commit_message\": \"v1.0-build\",
+          \"actions\": [{
+            \"action\": \"update\",
+            \"file_path\": \".build-trigger\",
+            \"content\": \"build-${GUID}-$(date +%s)\"
+          }]
+        }")
+
+      if [ "${HTTP_CODE}" = "201" ]; then
+        echo "  Trigger commit pushed."
+      elif [ "${HTTP_CODE}" = "400" ]; then
+        # File doesn't exist yet — create it
+        HTTP_CODE=$(curl -sk -o /dev/null -w '%{http_code}' \
+          -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" -X POST \
+          "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/repository/commits" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"branch\": \"main\",
+            \"commit_message\": \"v1.0-build\",
+            \"actions\": [{
+              \"action\": \"create\",
+              \"file_path\": \".build-trigger\",
+              \"content\": \"build-${GUID}-$(date +%s)\"
+            }]
+          }")
+        echo "  Trigger commit pushed (created file, HTTP ${HTTP_CODE})."
+      else
+        echo "  WARNING: trigger commit returned HTTP ${HTTP_CODE}."
+      fi
+    done
+
+    echo "Initial build trigger complete."
+{{- end }}
