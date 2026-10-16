@@ -243,6 +243,78 @@ Copy and fill for each new decision:
 
 ---
 
+## ADR-022 — snow-mock comments via ConfigMap + multi-app AO policy
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-15 |
+| **Title** | Vendored snow-mock with comments API; GitOps-native deploy; per-app `.lightwell/policy.json` + multi-app AO canvas |
+| **Context** | Product wants one AO run across wire-transfer (`needs_approval`), benefits (`auto`), and Renovate-owned report-generator, with ServiceNow as the ITSM trail. Upstream `snow-mock:1.0.0` has no comments API; waiting on Quay publish would block GitOps iteration. |
+| **Decision** | (1) Vendor snow-mock under `bootstrap-tenant/files/snow-mock/` with `POST/GET …/comments` + UI; deploy via ConfigMap + UBI Python unless `snow.image` is set. (2) Inject `.lightwell/policy.json` from `gitlab.appSeeds[].policy` during `create-gitlab-tenant`. (3) Rebuild AO workflow: SNOW create → Query TPA → classify → for-each (Impact draft MR → Verifier → Switch → Approval/merge) → SNOW finalize; keep resume Verifier as legacy only. (4) Playbooks live in `rhpds/lw-sdlc-opencode` (sibling checkout). |
+| **Consequences** | First pod start runs `pip install` (slower cold start). Existing tenants keep old quay image until Argo sync. Policy is chart-owned until upstream Acme repos also carry `.lightwell/`. AO validate/publish and SCM sync required before smoke. OpenCode Impact remains async for MR creation — Verifier may need MR iid lookup until a poll step lands. |
+
+## ADR-023 — Classify candidates are TPA `affected_repos` only
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Do not expand classify to the three Acme apps; use Query TPA artifacts |
+| **Context** | `classify-affected-apps.yml` replaced `affected_repos` with a hardcoded wire/benefits/report list when `blast_radius_mode=multi_app_policy_demo`. On tenant `t8s2n` v9, TPA correctly returned only `wire-transfer-svc`, but AO still looped all three; Impact on `benefits-mgmt-app` found no `com.h2database:h2` and never opened an MR, leaving the JT stuck on MR poll. |
+| **Decision** | Classify normalizes candidates strictly from `query_tpa.artifacts.affected_repos`. Policy split (AO vs Renovate vs fail-closed) still runs per candidate. `blast_radius_mode` is informational only. Multi-app demos require TPA to return multiple matches (SBOM coverage), not a classify-side invention. |
+| **Consequences** | Single-app TPA results → single for-each iteration (correct). Empty TPA list fails classify loudly. EDA default `blast_radius_mode` renamed to `tpa_affected_repos`. Local GitLab SCM mirror + AAP project update needed before the next smoke. |
+
+## ADR-024 — OpenCode idle wait uses `GET /session/status`
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Poll documented session status map; do not use `/session/:id` fields |
+| **Context** | Impact/Verifier JTs waited on `GET /session/{id}` for `status` / `time.completed`, which the OpenCode 1.19 API never sets (`/session/:id/status` is SPA HTML). Agents finished in ~15–30s but AAP burned ~10 min (60×10s) of false retries. |
+| **Decision** | Wait via `GET /session/status` ([docs](https://opencode.ai/docs/server/)): map of `{sessionID: {type: idle\|busy\|retry}}`. Idle sessions are omitted — treat missing id as idle. Shared task `opencode-wait-idle.yml`; settle 2s after `prompt_async` to avoid false idle. Keep GitLab MR poll as Impact completion proof. |
+| **Consequences** | Wall time drops from ~10 min tax to agent runtime + settle. Stuck `{type:busy}` sessions (if any) still block until timeout — use `POST /session/:id/abort` operationally. |
+
+## ADR-025 — Drop legacy GitLab MR resume Verifier
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | AO in-loop Verifier only; remove EDA MR-open → Resume |
+| **Context** | With multi-app AO canvas, Impact already launches in-loop Verifier. EDA still fired `SDLC Resume Orchestrator` on `update-artifact-*` MR open, starting a second `mr_verifier` session that raced the in-loop agent (4M+ token bash sed/grep loops). |
+| **Decision** | (1) Remove GitLab MR-open rule from `sdlc-remediation.yml`. (2) Remove AO `resume_trigger` + `mr_verifier_legacy` nodes. (3) Keep `sdlc-remediation-legacy.yml` for `orchestrator.enabled=false` only. (4) Approval branching uses `auto_approve` / `needs_approval` (not bare `auto` — Ansible/AO reserved); see ADR-026 for condition vs switch. Verifier JT defaults to GitLab MR-open check (`verifier_use_opencode: false`) until ephemeral skill is fixed in image. |
+| **Consequences** | No dual Verifier. Benefits/low-risk apps use `approval: auto_approve`; wire-transfer uses `needs_approval`. Full ephemeral verify needs skill + image bump. |
+
+## ADR-026 — Approval policy as condition, not switch
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Binary if/else for auto vs human merge after Verifier |
+| **Context** | AO `switch` with `default_port: auto_approve` and a case also named `auto_approve` fails at runtime: `Case port 'auto_approve' conflicts with default_port` (seen on `t8s2n` v11–v16). Two-way approval does not need multi-case switch semantics. |
+| **Decision** | Replace `approval_switch` with condition node `approval_auto`: `${verifier.artifacts.approval} == "auto_approve"` → true=`merge_auto`, false=`human_approval`. Keep artifact values `auto_approve` / `needs_approval` (never bare `auto`). |
+| **Consequences** | Unknown/empty approval falls through to human gate (safer than auto-merge). Republish `Lightwell Remediation` after bootstrap-ao so tenants leave the broken switch behind. |
+
+## ADR-027 — Impact `already_current` skips MR poll
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Treat “already on fix version” as a successful Impact outcome |
+| **Context** | Classify/`ao_apps` means TPA-affected + AO policy, not “still needs a pom bump.” After earlier smokes, `wire-transfer-svc` already had `com.h2database:h2:2.2.219.rhlw-00001`. Impact OpenCode correctly returned “already current / no MR,” then the playbook still polled GitLab 90× (~15 min) and failed. |
+| **Decision** | (1) After OpenCode idle, detect `already_current` from agent text and/or default-branch `pom.xml` containing the fix GAV. (2) Skip `poll-gitlab-mr` when already current; `set_stats` `iteration_outcome=already_current` (else `mr_opened`). (3) AO condition `impact_already` → true=`snow_iter_already`, false=Verifier→approval→merge. |
+| **Consequences** | Re-triggers on already-remediated apps finish in seconds with a SNOW note instead of hanging. Classify pre-filter remains optional. ADR-024’s “MR poll as completion proof” applies only to the `mr_opened` path. |
+
+## ADR-028 — Multi-app AO path and Oct 16 hardening
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Rollup: multi-app AO+SNOW+classify, then runtime hardening |
+| **Context** | Across 15–16 Oct the lab path moved from Demo-A single-app to a multi-app AO canvas with ServiceNow audit, then hit runtime failures on `t8s2n` (dual Verifier, switch `default_port` conflict, OpenCode idle API misuse, Impact MR-poll hang when GAV already on `main`, classify inventing apps). Work spans this repo (`bootstrap-ao-tenant`, snow-mock) and `rhpds/lw-sdlc-opencode` (playbooks/rulebooks). |
+| **Decision** | Treat ADR-022–027 as one delivery arc: (1) **15 Oct** — multi-app AO+SNOW+classify path (create → TPA → classify → for-each Impact/Verifier/approval/merge → finalize; vendored snow-mock; policy files). (2) **16 Oct** — harden merge (undraft then merge), OpenCode idle via `/session/status`, classify = TPA `affected_repos` only, drop EDA/AO legacy MR resume (no dual Verifier), approval as condition not switch, Impact `already_current` short-circuit. Proven on `t8s2n` AO **v18**. |
+| **Consequences** | Demo path is coherent on the tenant when playbooks + AO are republished; GitOps still needs `demo-update` → `rhpds/main` + Argo sync. Auto-approve smoke with a *new* bump still needs an app whose pom is not already on the fix GAV (or a pom rollback). Sibling playbook commits land via tenant GitLab mirror / AAP project sync until chart SCM points at published `lw-sdlc-opencode`. |
+
+---
+
 ## Mapping to HANDOFF.md
 
 | Handoff theme | ADR |
@@ -270,3 +342,10 @@ Copy and fill for each new decision:
 | OCI container registry in Nexus | ADR-019 |
 | PaC build pipelines per tenant | ADR-020 |
 | Maven via Nexus group + Lightwell repos | ADR-021 |
+| snow-mock comments + multi-app AO policy | ADR-022 |
+| Classify candidates = TPA affected_repos only | ADR-023 |
+| OpenCode idle wait via GET /session/status | ADR-024 |
+| Drop EDA/AO legacy MR resume dual-Verifier | ADR-025 |
+| Approval policy = condition (not switch) | ADR-026 |
+| Impact already_current skips MR poll | ADR-027 |
+| Multi-app AO path + Oct 16 hardening (rollup) | ADR-028 |

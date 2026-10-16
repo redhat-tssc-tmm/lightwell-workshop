@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-14 (Maven via Nexus group + Lightwell hosted repos)
+Last updated: 2026-10-16 (multi-app AO path hardened; merge upstream/main)
 
 ## Where the pieces live
 
@@ -20,6 +20,16 @@ Last updated: 2026-10-14 (Maven via Nexus group + Lightwell hosted repos)
 | Acme sample apps (3) | `redhat-ads-tech/{wire-transfer-svc,benefits-mgmt-app,report-generator-app}` |
 
 ## Recently done
+
+- **Multi-app AO path (15–16 Oct).** Built the multi-app AO+SNOW+classify
+  path (15 Oct), then hardened merge/OpenCode/classify, removed dual-Verifier,
+  fixed approval branching, and taught Impact/AO to short-circuit when the
+  remediating GAV is already on `main` (16 Oct). Live on `t8s2n` as AO
+  **v18**; playbooks on tenant GitLab `lw-sdlc-opencode-local` + AAP sync.
+  Chart commits on `demo-update` (merged `upstream/main`); Argo tenant app
+  still tracks `rhpds` `main` with auto-sync **off**. Details:
+  → [ADR-028](ADR.md#adr-028--multi-app-ao-path-and-oct-16-hardening),
+  [ADR-022](ADR.md#adr-022--snow-mock-comments-via-configmap--multi-app-ao-policy)–[027](ADR.md#adr-027--impact-already_current-skips-mr-poll)
 
 - Tenant renders and syncs with **no Lightwell Network credentials**. Nexus
   Secret no longer uses `required`; `nexus-reconcile.py` skips repos it cannot
@@ -74,7 +84,10 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   preset via `extends`. → [ADR-012](ADR.md#adr-012--renovate-for-deterministic-remediation)
 - **ServiceNow mock** deployed per tenant via `bootstrap-tenant`
   `templates/snow/` (namespace `snow-<guid>`, Deployment, Service, Route).
-  Image: `quay.io/redhat-ads-tech/snow-mock:1.0.0`.
+  Default: ConfigMap-mounted app from `files/snow-mock/` on UBI Python
+  (comments API + UI). Override with `snow.image`. `SNOW_URL` /
+  `SNOW_SVC_URL` on `tenant-integration`.
+  → [ADR-022](ADR.md#adr-022--snow-mock-comments-via-configmap--multi-app-ao-policy)
 - **ArgoCD admin password Job removed** from `bootstrap-infra`. The
   `set-admin-password` Job raced with the OpenShift GitOps operator. Use
   the operator-managed password or "Log in via OpenShift" instead.
@@ -157,6 +170,19 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   → [ADR-017](ADR.md#adr-017--keyless-signing-via-tas--tekton-chains)
 
 ## Next up
+
+0. **Land `demo-update` → `rhpds/main` and restore tenant Argo sync.** Chart
+   + AO canvas + snow-mock are on the branch; cluster still tracks `main`
+   with auto-sync off / OutOfSync hotfixes. After merge: sync
+   `lightwell-tenant-t8s2n`, re-run bootstrap-ao if needed.
+   → [ADR-028](ADR.md#adr-028--multi-app-ao-path-and-oct-16-hardening)
+
+0a. **OpenSpec multi-app smoke leftovers** (benefits auto-approve with a real
+   TPA hit; Renovate skip on classify comment). Verifier still defaults to
+   GitLab “MR open” until ephemeral OpenCode skill is fixed
+   (`verifier_use_opencode: true`).
+   → [ADR-022](ADR.md#adr-022--snow-mock-comments-via-configmap--multi-app-ao-policy),
+   `openspec/changes/multi-app-remediation-policy/`.
 
 1. **Automation Orchestrator** is installed by `bootstrap-infra` (AO CR +
    CNPG) and wired per tenant via `sdlc.orchestrator` (`enabled`, webhook
