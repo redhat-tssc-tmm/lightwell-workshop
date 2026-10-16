@@ -1,0 +1,31 @@
+{{- if .Values.apps.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: acme-apps-{{ .Values.guid }}
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    lightwell.guid: {{ .Values.guid | quote }}
+spec:
+  project: acme-{{ .Values.guid }}
+  source:
+    repoURL: {{ .Values.apps.repoURL }}
+    targetRevision: main
+    path: .
+    helm:
+      valuesObject:
+        guid: {{ .Values.guid }}
+        domain: {{ .Values.deployer.domain }}
+        imageTag: {{ .Values.apps.imageTag | default "latest" }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.username }}-app
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+{{- end }}

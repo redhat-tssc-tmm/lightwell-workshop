@@ -244,3 +244,9 @@ sdlc:
     aapUser: admin
     lightwell:
       url: https://packages.redhat.com/lightwell/java/remediated/
+
+# Acme sample app deployment (ArgoCD app-of-apps → user-{guid}-app namespace)
+apps:
+  enabled: true
+  imageTag: latest
+  repoURL: https://github.com/redhat-ads-tech/acme-deployment.git

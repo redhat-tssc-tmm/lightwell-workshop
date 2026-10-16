@@ -1,0 +1,24 @@
+{{- if .Values.apps.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: acme-{{ .Values.guid }}
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  description: "Acme sample apps for tenant {{ .Values.guid }}"
+  sourceRepos:
+    - {{ .Values.apps.repoURL | quote }}
+  destinations:
+    - namespace: {{ .Values.username }}-app
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: Deployment
+    - group: route.openshift.io
+      kind: Route
+{{- end }}
