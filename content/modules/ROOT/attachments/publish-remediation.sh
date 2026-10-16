@@ -135,15 +135,32 @@ echo "  is now available in https://${NEXUS_HOST}/repository/${REPO}"
 echo ""
 echo "--- Discovering TPA ---"
 TPA_NS="tpa-${GUID}"
-TPA_HOST=$(oc get route -n "${TPA_NS}" -l app.kubernetes.io/component=server -o jsonpath='{.items[0].spec.host}' 2>/dev/null \
-  || oc get route tpa -n "${TPA_NS}" -o jsonpath='{.spec.host}' 2>/dev/null \
-  || oc get route -n "${TPA_NS}" -o jsonpath='{.items[0].spec.host}' 2>/dev/null)
-echo "  TPA host: ${TPA_HOST}"
 
-OIDC_SECRET=$(oc get secret oidc-cli -n "${TPA_NS}" -o jsonpath='{.data.client-secret}' | base64 -d)
-KC_HOST=$(oc get route -n keycloak keycloak -o jsonpath='{.spec.host}' 2>/dev/null \
-  || oc get route -n sso keycloak -o jsonpath='{.spec.host}' 2>/dev/null)
+# Derive TPA and SSO hostnames from the Nexus hostname
+# Nexus:  nexus-lightwell-nexus-{guid}.apps.{cluster}
+# TPA:    tpa-{guid}.apps.{cluster}
+# SSO:    sso.apps.{cluster}
+APPS_DOMAIN=$(echo "${NEXUS_HOST}" | sed "s/^nexus-lightwell-nexus-${GUID}\.//")
+TPA_HOST="tpa-${GUID}.${APPS_DOMAIN}"
+KC_HOST="sso.${APPS_DOMAIN}"
+
+echo "  TPA host: ${TPA_HOST}"
 echo "  Keycloak: ${KC_HOST}"
+
+# Get the OIDC client secret for TPA
+OIDC_SECRET=$(oc get secret oidc-cli -n "${TPA_NS}" -o jsonpath='{.data.client-secret}' 2>/dev/null | base64 -d 2>/dev/null)
+if [ -z "${OIDC_SECRET}" ]; then
+  echo ""
+  echo "  ERROR: Cannot read the TPA OIDC secret (oidc-cli) in namespace ${TPA_NS}."
+  echo "  Your user may not have permission to read secrets in that namespace."
+  echo "  Ask your cluster administrator to grant read access, or run this script"
+  echo "  as a cluster admin."
+  echo ""
+  echo "  Nexus remediation was published successfully — only TPA advisories were skipped."
+  echo ""
+  echo "=== Remediation published (Nexus only) ==="
+  exit 0
+fi
 
 echo -n "  Acquiring token... "
 TPA_TOKEN=$(curl -sk -X POST \
@@ -155,7 +172,13 @@ TPA_TOKEN=$(curl -sk -X POST \
   | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
 
 if [ -z "${TPA_TOKEN}" ]; then
-  echo "FAILED (skipping TPA advisories)"
+  echo "FAILED"
+  echo ""
+  echo "  ERROR: Could not acquire an OIDC token from Keycloak."
+  echo "  Check that the Keycloak server is reachable at https://${KC_HOST}"
+  echo "  and that the tpa-cli client is configured in the sso realm."
+  echo ""
+  echo "  Nexus remediation was published successfully — only TPA advisories were skipped."
   echo ""
   echo "=== Remediation published (Nexus only) ==="
   exit 0

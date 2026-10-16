@@ -93,6 +93,36 @@ subjects:
   - kind: ServiceAccount
     name: lightwell-tenant-jobs
     namespace: {{ include "bootstrap-tenant.jobNamespace" . }}
+---
+# Tenant user reads oidc-cli to publish OSV advisories from the Showroom terminal.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tpa-oidc-reader-user-{{ .Values.guid }}
+  namespace: {{ include "tpa.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["oidc-cli"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tpa-oidc-reader-user-{{ .Values.guid }}
+  namespace: {{ include "tpa.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tpa-oidc-reader-user-{{ .Values.guid }}
+subjects:
+  - kind: User
+    name: user-{{ .Values.guid }}
+    apiGroup: rbac.authorization.k8s.io
 {{- if .Values.tpa.rhda.enabled }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
