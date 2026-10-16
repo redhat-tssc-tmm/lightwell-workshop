@@ -185,37 +185,44 @@ if [ -z "${TPA_TOKEN}" ]; then
 fi
 echo "OK"
 
-# Generate deterministic advisory IDs from the GAV
-GAV_HASH=$(echo -n "${GAV}" | sha256sum | cut -c1-10)
-NUM1=$(printf "%d" "0x${GAV_HASH:0:5}")
-NUM2=$((NUM1 + 1))
-NUM3=$((NUM1 + 2))
-YEAR=$(date +%Y)
-NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# Query TPA for existing vulnerabilities affecting this package
+echo ""
+echo "--- Finding known vulnerabilities for ${GROUP_ID}:${ARTIFACT_ID} ---"
+VULN_IDS=$(curl -sk "https://${TPA_HOST}/api/v3/vulnerability?q=${ARTIFACT_ID}&limit=100" \
+  -H "Authorization: Bearer ${TPA_TOKEN}" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+ids = [v['identifier'] for v in data.get('items', []) if v.get('identifier','').startswith('CVE-')]
+print(' '.join(ids[:10]))
+" 2>/dev/null)
 
-# Advisory templates — three realistic vulnerability classes
-declare -a ADV_IDS=("RHLW-${YEAR}-${NUM1}" "RHLW-${YEAR}-${NUM2}" "RHLW-${YEAR}-${NUM3}")
-declare -a ADV_TITLES=(
-  "${DESCRIPTION}: Denial of service via deeply nested structure processing"
-  "${DESCRIPTION}: Unsafe deserialization allows remote code execution"
-  "${DESCRIPTION}: Input validation bypass leads to information disclosure"
-)
-declare -a ADV_DETAILS=(
-  "${GROUP_ID}:${ARTIFACT_ID} before ${RHLW_VERSION} is vulnerable to a denial of service attack. Processing deeply nested input structures causes excessive stack consumption, crashing the application."
-  "${GROUP_ID}:${ARTIFACT_ID} before ${RHLW_VERSION} contains an unsafe deserialization vulnerability. An attacker can craft malicious input that bypasses type validation, leading to arbitrary code execution."
-  "${GROUP_ID}:${ARTIFACT_ID} before ${RHLW_VERSION} insufficiently validates input boundaries, allowing an attacker to access internal object state and disclose sensitive information."
-)
-declare -a ADV_CVSS=(
-  "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-  "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-  "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
-)
+if [ -z "${VULN_IDS}" ]; then
+  echo "  No existing CVEs found — advisories would have no vulnerability links."
+  echo "  TPA requires CVE references to associate advisories with SBOM packages."
+  echo ""
+  echo "=== Remediation published (Nexus only) ==="
+  exit 0
+fi
+
+# Convert to array and pick up to 3
+read -ra CVE_ARRAY <<< "${VULN_IDS}"
+CVE_COUNT=${#CVE_ARRAY[@]}
+if [ "${CVE_COUNT}" -gt 3 ]; then CVE_COUNT=3; fi
+
+echo "  Found ${#CVE_ARRAY[@]} CVEs — using ${CVE_COUNT} for advisories"
+for c in "${CVE_ARRAY[@]:0:${CVE_COUNT}}"; do echo "    ${c}"; done
+
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+GAV_HASH=$(echo -n "${GAV}" | sha256sum | cut -c1-10)
+NUM_BASE=$(printf "%d" "0x${GAV_HASH:0:5}")
+YEAR=$(date +%Y)
 
 echo ""
 echo "--- Publishing OSV advisories to TPA ---"
 
-for i in 0 1 2; do
-  ADV_ID="${ADV_IDS[$i]}"
+for i in $(seq 0 $((CVE_COUNT - 1))); do
+  CVE_ID="${CVE_ARRAY[$i]}"
+  ADV_ID="RHLW-${YEAR}-$((NUM_BASE + i))"
   OSV_FILE=$(mktemp)
 
   cat > "${OSV_FILE}" <<OSVEOF
@@ -227,7 +234,7 @@ for i in 0 1 2; do
   "severity": [
     {
       "type": "CVSS_V3",
-      "score": "${ADV_CVSS[$i]}"
+      "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     }
   ],
   "references": [
@@ -236,18 +243,15 @@ for i in 0 1 2; do
       "type": "WEB"
     }
   ],
-  "summary": "${ADV_TITLES[$i]}",
-  "details": "${ADV_DETAILS[$i]}",
-  "aliases": [],
+  "summary": "${DESCRIPTION}: Lightwell remediation for ${CVE_ID}",
+  "details": "${GROUP_ID}:${ARTIFACT_ID} ${BASE_VERSION} is affected by ${CVE_ID}. The Lightwell-remediated build ${RHLW_VERSION} resolves this vulnerability while preserving API compatibility.",
+  "aliases": ["${CVE_ID}"],
   "affected": [
     {
       "package": {
         "ecosystem": "Maven",
         "name": "${GROUP_ID}:${ARTIFACT_ID}"
       },
-      "versions": [
-        "${BASE_VERSION}"
-      ],
       "ranges": [
         {
           "type": "ECOSYSTEM",
@@ -278,7 +282,7 @@ for i in 0 1 2; do
 }
 OSVEOF
 
-  echo -n "  ${ADV_ID}: ${ADV_TITLES[$i]:0:60}... "
+  echo -n "  ${ADV_ID} (${CVE_ID}): "
   HTTP=$(curl -sk -X POST "https://${TPA_HOST}/api/v3/advisory" \
     -H "Authorization: Bearer ${TPA_TOKEN}" \
     -H "Content-Type: application/json" \
@@ -294,9 +298,9 @@ echo ""
 echo "  Nexus:  ${GROUP_ID}:${ARTIFACT_ID}:${RHLW_VERSION}"
 echo "          https://${NEXUS_HOST}/repository/${REPO}"
 echo ""
-echo "  TPA:    3 advisories published (${ADV_IDS[0]}, ${ADV_IDS[1]}, ${ADV_IDS[2]})"
+echo "  TPA:    ${CVE_COUNT} advisories published (linked to existing CVEs)"
 echo "          https://${TPA_HOST}"
 echo ""
-echo "  The base version (${BASE_VERSION}) now shows vulnerabilities in TPA."
+echo "  The base version (${BASE_VERSION}) now shows additional vulnerabilities in TPA."
 echo "  After building with ${RHLW_VERSION}, those vulnerabilities will be resolved."
 echo ""
