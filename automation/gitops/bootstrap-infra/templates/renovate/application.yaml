@@ -21,6 +21,15 @@ spec:
         securityContext:
           pod: {}
           container: {}
+        auth:
+          oidc:
+            enabled: true
+            issuerUrl: https://sso.{{ .Values.deployer.domain }}/realms/sso
+            clientId: renovate-ui
+            existingSecret: renovate-oidc-secret
+            secretKey: client-secret
+            insecureSkipVerify: true
+            redirectUrl: https://renovate-operator-renovate-operator.{{ .Values.deployer.domain }}/auth/callback
         crd:
           install: true
           mode: template

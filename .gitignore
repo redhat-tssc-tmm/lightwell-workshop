@@ -2,6 +2,10 @@
 www/
 .cache/
 
+# Node modules
+node_modules/
+package-lock.json
+
 # Local secrets (Lightwell Network, OpenAI, etc.) — never commit
 .env.secrets
 .env.secrets.*
