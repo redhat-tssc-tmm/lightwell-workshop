@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-16 (Renovate OIDC, BeforeHookCreation, showroom Module 2)
+Last updated: 2026-10-16 (`demo-update`→main + OpenSpec multi-app smoke)
 
 ## Where the pieces live
 
@@ -25,18 +25,26 @@ Last updated: 2026-10-16 (Renovate OIDC, BeforeHookCreation, showroom Module 2)
   `opencode-ui-gate` (HTML bootstrap injecting `/app` into the SPA's open-
   projects localStorage). Fresh browsers list Impact/Verifier transcripts;
   AAP still calls Service `opencode:4096` directly. Live on `t8s2n` without
-  restarting the opencode pod. Chart on `demo-update` (Argo still tracks
-  `rhpds/main`). → [ADR-029](ADR.md#adr-029--opencode-ui-gate-for-web-session-visibility)
+  restarting the opencode pod. → [ADR-029](ADR.md#adr-029--opencode-ui-gate-for-web-session-visibility)
 
 - **Multi-app AO path (15–16 Oct).** Built the multi-app AO+SNOW+classify
   path (15 Oct), then hardened merge/OpenCode/classify, removed dual-Verifier,
   fixed approval branching, and taught Impact/AO to short-circuit when the
   remediating GAV is already on `main` (16 Oct). Live on `t8s2n` as AO
   **v18**; playbooks on tenant GitLab `lw-sdlc-opencode-local` + AAP sync.
-  Chart commits on `demo-update` (merged `upstream/main`); Argo tenant app
-  still tracks `rhpds` `main` with auto-sync **off**. Details:
+  Details:
   → [ADR-028](ADR.md#adr-028--multi-app-ao-path-and-oct-16-hardening),
   [ADR-022](ADR.md#adr-022--snow-mock-comments-via-configmap--multi-app-ao-policy)–[027](ADR.md#adr-027--impact-already_current-skips-mr-poll)
+
+- **`demo-update` landed on `rhpds/main`; tenant Argo sync restored.** Chart
+  + AO canvas + snow-mock are on `main`; `lightwell-tenant-t8s2n` syncs from
+  there. → [ADR-028](ADR.md#adr-028--multi-app-ao-path-and-oct-16-hardening)
+
+- **OpenSpec multi-app smoke leftovers closed.** Benefits auto-approve with a
+  real TPA hit; Renovate skip on classify comment. Verifier still defaults to
+  GitLab “MR open” until ephemeral OpenCode skill is fixed
+  (`verifier_use_opencode: true`).
+  → [ADR-022](ADR.md#adr-022--snow-mock-comments-via-configmap--multi-app-ao-policy)
 
 - Tenant renders and syncs with **no Lightwell Network credentials**. Nexus
   Secret no longer uses `required`; `nexus-reconcile.py` skips repos it cannot
@@ -205,18 +213,10 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
 
 ## Next up
 
-0. **Land `demo-update` → `rhpds/main` and restore tenant Argo sync.** Chart
-   + AO canvas + snow-mock are on the branch; cluster still tracks `main`
-   with auto-sync off / OutOfSync hotfixes. After merge: sync
-   `lightwell-tenant-t8s2n`, re-run bootstrap-ao if needed.
-   → [ADR-028](ADR.md#adr-028--multi-app-ao-path-and-oct-16-hardening)
-
-0a. **OpenSpec multi-app smoke leftovers** (benefits auto-approve with a real
-   TPA hit; Renovate skip on classify comment). Verifier still defaults to
-   GitLab “MR open” until ephemeral OpenCode skill is fixed
-   (`verifier_use_opencode: true`).
-   → [ADR-022](ADR.md#adr-022--snow-mock-comments-via-configmap--multi-app-ao-policy),
-   `openspec/changes/multi-app-remediation-policy/`.
+0. **Verifier still defaults to GitLab “MR open”**
+   (`verifier_use_opencode: false`) until the ephemeral OpenCode skill is
+   fixed in the image, then flip to `true`.
+   → [ADR-025](ADR.md#adr-025--drop-legacy-gitlab-mr-resume-verifier)
 
 1. **Automation Orchestrator** is installed by `bootstrap-infra` (AO CR +
    CNPG) and wired per tenant via `sdlc.orchestrator` (`enabled`, webhook

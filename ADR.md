@@ -8,7 +8,7 @@ same change.
 - **HANDOFF.md** — short operational list (what’s done / next / gotchas).
 - **ADR.md** — why we chose it (context, decision, consequences).
 
-Last synced with HANDOFF: 2026-10-12
+Last synced with HANDOFF: 2026-10-16
 
 ---
 
@@ -311,7 +311,7 @@ Copy and fill for each new decision:
 | **Title** | Rollup: multi-app AO+SNOW+classify, then runtime hardening |
 | **Context** | Across 15–16 Oct the lab path moved from Demo-A single-app to a multi-app AO canvas with ServiceNow audit, then hit runtime failures on `t8s2n` (dual Verifier, switch `default_port` conflict, OpenCode idle API misuse, Impact MR-poll hang when GAV already on `main`, classify inventing apps). Work spans this repo (`bootstrap-ao-tenant`, snow-mock) and `rhpds/lw-sdlc-opencode` (playbooks/rulebooks). |
 | **Decision** | Treat ADR-022–027 as one delivery arc: (1) **15 Oct** — multi-app AO+SNOW+classify path (create → TPA → classify → for-each Impact/Verifier/approval/merge → finalize; vendored snow-mock; policy files). (2) **16 Oct** — harden merge (undraft then merge), OpenCode idle via `/session/status`, classify = TPA `affected_repos` only, drop EDA/AO legacy MR resume (no dual Verifier), approval as condition not switch, Impact `already_current` short-circuit. Proven on `t8s2n` AO **v18**. |
-| **Consequences** | Demo path is coherent on the tenant when playbooks + AO are republished; GitOps still needs `demo-update` → `rhpds/main` + Argo sync. Auto-approve smoke with a *new* bump still needs an app whose pom is not already on the fix GAV (or a pom rollback). Sibling playbook commits land via tenant GitLab mirror / AAP project sync until chart SCM points at published `lw-sdlc-opencode`. |
+| **Consequences** | Demo path is coherent on the tenant when playbooks + AO are republished. **Done:** `demo-update` → `rhpds/main` and tenant Argo sync restored; OpenSpec leftovers (benefits auto-approve with real TPA hit; Renovate skip on classify) closed. Auto-approve smoke with a *new* bump still needs an app whose pom is not already on the fix GAV (or a pom rollback). Sibling playbook commits land via tenant GitLab mirror / AAP project sync until chart SCM points at published `lw-sdlc-opencode`. Verifier still on GitLab MR-open check until ephemeral OpenCode skill + `verifier_use_opencode: true`. |
 
 ## ADR-029 — OpenCode UI gate for web session visibility
 
