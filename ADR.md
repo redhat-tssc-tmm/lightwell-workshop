@@ -8,7 +8,7 @@ same change.
 - **HANDOFF.md** — short operational list (what’s done / next / gotchas).
 - **ADR.md** — why we chose it (context, decision, consequences).
 
-Last synced with HANDOFF: 2026-10-16
+Last synced with HANDOFF: 2026-10-16 (ADR-031 trigger-script)
 
 ---
 
@@ -333,6 +333,16 @@ Copy and fill for each new decision:
 | **Decision** | A sync hook Job in `bootstrap-infra/templates/renovate/oidc-setup-job.yaml` creates a `renovate-ui` OIDC client in the Keycloak `sso` realm and stores the client secret in the `renovate-operator` namespace. The operator Helm values enable `auth.oidc` with the SSO issuer URL and redirect callback. Each student's RenovateJob sets `spec.access.adminUsers` to their Keycloak email (`{user}@demo.redhat.com`). The Renovate namespace is `{username}-renovate` (not `sdlc-{guid}`) with an `edit` RoleBinding and a custom Role granting access to `renovatejobs` and `renovateprojects` CRDs. |
 | **Consequences** | Students log in via SSO and only see their own RenovateJobs. The OIDC client uses a wildcard redirect URI (`/*`). The operator matches `adminUsers` against the OIDC email claim, not the username — the `@demo.redhat.com` domain comes from the Keycloak user setup in AgnosticV. If the Keycloak email domain changes, the showroom's `oc apply` and the matching must be updated. |
 
+## ADR-031 — Showcase Nexus webhook trigger script
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Repo-local script to fire Path 2 (AO) via EDA without Nexus upload |
+| **Context** | Demo / operator smoke needs a repeatable way to start the multi-app AO canvas for both approval policies. Real Nexus webhooks are often missing (empty Lightwell Network creds) and a cached GAV cannot re-fire. Showroom `inject-remediation.sh` uploads to Nexus for Renovate (Path 1), not EDA. |
+| **Decision** | Keep a small showcase under [`trigger-script/`](trigger-script/): `trigger-nexus-webhook.sh` POSTs a Nexus-shaped `action=CREATED` body to the tenant EDA route (discovered from `tenant-integration` / Route). Two cases map to Acme policies — `needs-approval` → `com.h2database:h2` / wire-transfer; `auto-approve` → `org.flywaydb:flyway-core` / benefits — with unique `.rhlw-HHMMSS` versions. Document usage in [`trigger-script/README.md`](trigger-script/README.md). |
+| **Consequences** | Operators can demo AO without seeding Nexus. Auto-approve still depends on TPA SBOM coverage for the chosen GAV (override `AUTO_APPROVE_GAV` if needed). Script is not student Showroom content; Path 1 keep using `inject-remediation.sh`. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -371,3 +381,4 @@ Copy and fill for each new decision:
 | Multi-app AO path + Oct 16 hardening (rollup) | ADR-028 |
 | OpenCode UI gate (web sessions visible) | ADR-029 |
 | Renovate OIDC via Keycloak | ADR-030 |
+| Showcase Nexus webhook trigger script | ADR-031 |

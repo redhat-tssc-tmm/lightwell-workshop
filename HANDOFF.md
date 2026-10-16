@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-16 (`demo-update`→main + OpenSpec multi-app smoke)
+Last updated: 2026-10-16 (trigger-script showcase for AO webhooks)
 
 ## Where the pieces live
 
@@ -18,8 +18,15 @@ Last updated: 2026-10-16 (`demo-update`→main + OpenSpec multi-app smoke)
 | Catalog item `lb1815-lightwell-tenant` | `rhpds/agnosticv`, `rh1-2027/` — via PR |
 | OpenCode agent prompts, EDA rulebooks, AAP playbooks | `rhpds/lw-sdlc-opencode` — via PR |
 | Acme sample apps (3) | `redhat-ads-tech/{wire-transfer-svc,benefits-mgmt-app,report-generator-app}` |
+| AO Nexus webhook showcase script | this repo — [`trigger-script/`](trigger-script/) |
 
 ## Recently done
+
+- **AO webhook showcase script** in [`trigger-script/`](trigger-script/) —
+  POSTs Nexus-shaped `CREATED` to the tenant EDA route for
+  `needs-approval` (h2 → wire-transfer) and `auto-approve` (flyway → benefits).
+  See [`trigger-script/README.md`](trigger-script/README.md).
+  → [ADR-031](ADR.md#adr-031--showcase-nexus-webhook-trigger-script)
 
 - **OpenCode web UI shows agent sessions.** Route `opencode-ui` now targets
   `opencode-ui-gate` (HTML bootstrap injecting `/app` into the SPA's open-
@@ -213,7 +220,16 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
 
 ## Next up
 
-0. **Verifier still defaults to GitLab “MR open”**
+0. **EDA rulebook must pass `snow_url` / `snow_svc_url` (and friends) in
+   `job_args.extra_vars`.** Activation vars are not merged into the Start
+   Orchestrator JT — seen on `cng2l`: first Nexus→EDA fire created AO run
+   then Create SNOW failed empty URL. Fixed locally in
+   `lw-sdlc-opencode` rulebook + bake-at-publish in `bootstrap-ao-tenant`;
+   needs push to `rhpds/lw-sdlc-opencode` + chart merge. Full AO path then
+   proven: SNOW INC0023249 → TPA → classify → Impact MR !1 → Verifier →
+   merge → finalize (~2.5 min).
+
+0a. **Verifier still defaults to GitLab “MR open”**
    (`verifier_use_opencode: false`) until the ephemeral OpenCode skill is
    fixed in the image, then flip to `true`.
    → [ADR-025](ADR.md#adr-025--drop-legacy-gitlab-mr-resume-verifier)

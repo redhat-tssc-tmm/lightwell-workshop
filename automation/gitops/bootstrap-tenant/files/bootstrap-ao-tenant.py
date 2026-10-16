@@ -454,6 +454,15 @@ def remediation_workflow_definition(
     → Resume → mr_verifier_legacy was removed — it dual-fired Verifier and raced
     the in-loop agent.
     """
+    # Prefer values baked at publish time from tenant-integration. EDA
+    # run_job_template job_args historically omitted snow_*/gitlab_token/
+    # tpa_oauth_client_secret even when the activation had them, so relying
+    # solely on ${trigger.*} left Create SNOW (and later nodes) empty.
+    snow_url = env("SNOW_URL", "")
+    snow_svc_url = env("SNOW_SVC_URL", "")
+    gitlab_token = env("GITLAB_TOKEN", "")
+    tpa_oauth_client_secret = env("TPA_OAUTH_CLIENT_SECRET", "")
+
     trigger_common = {
         "artifact_name": "${trigger.artifact_name}",
         "artifact_group": "${trigger.artifact_group}",
@@ -468,12 +477,18 @@ def remediation_workflow_definition(
         "keycloak_tpa_realm": "${trigger.keycloak_tpa_realm}",
         "tpa_uploader_username": "${trigger.tpa_uploader_username}",
         "tpa_oauth_client_id": "${trigger.tpa_oauth_client_id}",
-        "tpa_oauth_client_secret": "${trigger.tpa_oauth_client_secret}",
+        "tpa_oauth_client_secret": (
+            tpa_oauth_client_secret
+            if tpa_oauth_client_secret
+            else "${trigger.tpa_oauth_client_secret}"
+        ),
         "tpa_uploader_password": "${trigger.tpa_uploader_password}",
         "tpa_sbom_label": "${trigger.tpa_sbom_label}",
 
         "gitlab_url": "${trigger.gitlab_url}",
-        "gitlab_token": "${trigger.gitlab_token}",
+        "gitlab_token": (
+            gitlab_token if gitlab_token else "${trigger.gitlab_token}"
+        ),
         "remediation_app_gitlab_path": "${trigger.remediation_app_gitlab_path}",
         "eda_webhook_url": "${trigger.eda_webhook_url}",
         "blast_radius_mode": "${trigger.blast_radius_mode}",
@@ -482,8 +497,8 @@ def remediation_workflow_definition(
         "opencode_server_password": "${trigger.opencode_server_password}",
         "aap_organization_name": "${trigger.aap_organization_name}",
         "guid": "${trigger.guid}",
-        "snow_url": "${trigger.snow_url}",
-        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_url": snow_url if snow_url else "${trigger.snow_url}",
+        "snow_svc_url": snow_svc_url if snow_svc_url else "${trigger.snow_svc_url}",
     }
     snow_create_vars = {
         **trigger_common,
