@@ -160,39 +160,24 @@ curl -sSL https://showroom-{user}-showroom.{openshift_cluster_ingress_domain}/mo
   "Jackson Databind"
 ----
 
-The script discovers your Nexus and TPA instances automatically, publishes the remediated artifact to Nexus, and publishes three OSV advisories to TPA. You should see output like this:
+The script discovers your Nexus and TPA instances automatically, publishes the remediated artifact to Nexus, and publishes OSV advisories to TPA. It should succeed and end with:
 
 [source,text]
 ----
-=== Publishing Lightwell Remediation ===
-
-  Package:     com.fasterxml.jackson.core:jackson-databind
-  Base version: 2.13.5
-  LW version:  2.13.5.rhlw-00001
-  Description: Jackson Databind
-
---- Discovering Nexus ---
-  Nexus host: nexus-lightwell-nexus-xxxxx.apps.cluster-xxxxx.dyn.redhatworkshops.io
-  ...
-
---- Publishing to Nexus (lightwell-remediated) ---
-  Uploading POM... HTTP 201
-  Uploading JAR... HTTP 201
-  Uploading metadata... HTTP 201
-
---- Discovering TPA ---
-  TPA host: tpa-xxxxx.apps.cluster-xxxxx.dyn.redhatworkshops.io
-  ...
-
---- Publishing OSV advisories to TPA ---
-  RHLW-2026-xxxxx: Jackson Databind: Denial of service via deeply nested...  HTTP 201
-  RHLW-2026-xxxxx: Jackson Databind: Unsafe deserialization allows remot...  HTTP 201
-  RHLW-2026-xxxxx: Jackson Databind: Input validation bypass leads to in...  HTTP 201
-
 === Remediation published ===
+
+  Nexus:  com.fasterxml.jackson.core:jackson-databind:2.13.5.rhlw-00001
+          https://<nexus-host>/repository/lightwell-remediated
+
+  TPA:    3 advisories published
+          https://<tpa-host>
 ----
 
-Before continuing, open https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`) and navigate to *Advisories*. You should see three new `RHLW-` advisories listing `jackson-databind` vulnerabilities — a denial of service, an unsafe deserialization, and an input validation bypass — all with `2.13.5.rhlw-00001` as the fixed version. If you check the `report-generator-app` SBOM, you will see these vulnerabilities now appear against the current build's `jackson-databind:2.13.5`.
+Before continuing, open https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`) and navigate to *Advisories*. You should see three new `RHLW-` advisories listing `jackson-databind` vulnerabilities — a denial of service, an unsafe deserialization, and an input validation bypass — all with `2.13.5.rhlw-00001` as the fixed version.
+
+image::tpa-rhlw-advisories.png[TPA Advisories showing the three RHLW advisories for jackson-databind]
+
+If you check the `report-generator-app` SBOM, you will see these vulnerabilities now appear against the current build's `jackson-databind:2.13.5`.
 
 == Watching Renovate React
 

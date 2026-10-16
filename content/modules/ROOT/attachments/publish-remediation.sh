@@ -186,8 +186,6 @@ fi
 echo "OK"
 
 # Query TPA for existing vulnerabilities affecting this package
-echo ""
-echo "--- Finding known vulnerabilities for ${GROUP_ID}:${ARTIFACT_ID} ---"
 VULN_IDS=$(curl -sk "https://${TPA_HOST}/api/v3/vulnerability?q=${ARTIFACT_ID}&limit=100" \
   -H "Authorization: Bearer ${TPA_TOKEN}" | python3 -c "
 import sys, json
@@ -197,8 +195,8 @@ print(' '.join(ids[:10]))
 " 2>/dev/null)
 
 if [ -z "${VULN_IDS}" ]; then
-  echo "  No existing CVEs found — advisories would have no vulnerability links."
-  echo "  TPA requires CVE references to associate advisories with SBOM packages."
+  echo ""
+  echo "  No CVEs found for ${ARTIFACT_ID} in TPA — skipping advisory publication."
   echo ""
   echo "=== Remediation published (Nexus only) ==="
   exit 0
@@ -209,16 +207,14 @@ read -ra CVE_ARRAY <<< "${VULN_IDS}"
 CVE_COUNT=${#CVE_ARRAY[@]}
 if [ "${CVE_COUNT}" -gt 3 ]; then CVE_COUNT=3; fi
 
-echo "  Found ${#CVE_ARRAY[@]} CVEs — using ${CVE_COUNT} for advisories"
-for c in "${CVE_ARRAY[@]:0:${CVE_COUNT}}"; do echo "    ${c}"; done
-
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 GAV_HASH=$(echo -n "${GAV}" | sha256sum | cut -c1-10)
 NUM_BASE=$(printf "%d" "0x${GAV_HASH:0:5}")
 YEAR=$(date +%Y)
 
 echo ""
-echo "--- Publishing OSV advisories to TPA ---"
+echo ""
+echo "--- Publishing Lightwell OSV advisories ---"
 
 for i in $(seq 0 $((CVE_COUNT - 1))); do
   CVE_ID="${CVE_ARRAY[$i]}"
@@ -298,9 +294,6 @@ echo ""
 echo "  Nexus:  ${GROUP_ID}:${ARTIFACT_ID}:${RHLW_VERSION}"
 echo "          https://${NEXUS_HOST}/repository/${REPO}"
 echo ""
-echo "  TPA:    ${CVE_COUNT} advisories published (linked to existing CVEs)"
+echo "  TPA:    ${CVE_COUNT} advisories published"
 echo "          https://${TPA_HOST}"
-echo ""
-echo "  The base version (${BASE_VERSION}) now shows additional vulnerabilities in TPA."
-echo "  After building with ${RHLW_VERSION}, those vulnerabilities will be resolved."
 echo ""
