@@ -36,7 +36,7 @@ Open https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^] (username
 }
 ----
 
-The preset defaults to `packages.redhat.com` (the real Lightwell registry), but since we are using a simulated Lightwell repository in Nexus, the RenovateJob you create next will supply your dedicated Nexus URL and credentials at runtime — keeping them out of the source repository.
+The preset defaults to `packages.redhat.com` (the production Lightwell registry). In this lab your dedicated Nexus instance acts as a local Lightwell mirror, so the RenovateJob you create next will supply your Nexus URL and credentials at runtime — keeping them out of the source repository.
 
 == Creating the RenovateJob
 
@@ -131,50 +131,56 @@ image::renovate-ui-log-no-updates.png[Renovate log showing no updates found]
 
 == A New Lightwell Remediation Becomes Available
 
-Now simulate a new Lightwell remediation arriving. The xref:attachment$inject-remediation.sh[inject-remediation.sh] script uploads a remediated version of a dependency into your Nexus `lightwell-remediated` repository — the same thing the Lightwell Network does in production.
+When Red Hat publishes a new Lightwell remediation, two things happen:
 
-Run the following command in the terminal on the right to inject a remediated build of Netflix Hystrix (one of the vulnerable dependencies in `report-generator-app`):
+. *A remediated Maven artifact* is published to the Lightwell registry — a rebuilt JAR with the `.rhlw` version suffix that preserves API compatibility with the original
+. *OSV advisories* are published describing the vulnerabilities that the remediation fixes
+
+The OSV metadata is key: Red Hat publishes machine-readable https://ossf.github.io/osv-schema/[OSV^] vulnerability data for every Lightwell remediation. This allows security scanners, SBOMs, and platforms like TPA to automatically recognize which CVEs a given `.rhlw` version resolves — closing the loop between remediation and verification without manual triage.
+
+In this lab, you will play the role of the Lightwell Network and publish a new remediation for Jackson Databind (one of the vulnerable dependencies in `report-generator-app`). Run the following command in the terminal on the right:
 
 [source,bash, role=execute]
 ----
-bash /showroom/repo/content/modules/ROOT/attachments/inject-remediation.sh \
-  org.springframework.cloud:spring-cloud-starter-netflix-hystrix:2.2.10.RELEASE \
+bash /showroom/repo/content/modules/ROOT/attachments/publish-remediation.sh \
+  com.fasterxml.jackson.core:jackson-databind:2.13.5 \
   rhlw-00001 \
-  "Netflix Hystrix"
+  "Jackson Databind"
 ----
 
-The script discovers your Nexus instance automatically, creates a minimal POM and JAR with the `.rhlw-00001` version suffix, and uploads them alongside Maven metadata. You should see output like this:
+The script discovers your Nexus and TPA instances automatically, publishes the remediated artifact to Nexus, and publishes three OSV advisories to TPA. You should see output like this:
 
 [source,text]
 ----
-=== Injecting Lightwell Remediation ===
+=== Publishing Lightwell Remediation ===
 
-  Package:     org.springframework.cloud:spring-cloud-starter-netflix-hystrix
-  Base version: 2.2.10.RELEASE
-  LW version:  2.2.10.RELEASE.rhlw-00001
-  Description: Netflix Hystrix
+  Package:     com.fasterxml.jackson.core:jackson-databind
+  Base version: 2.13.5
+  LW version:  2.13.5.rhlw-00001
+  Description: Jackson Databind
 
 --- Discovering Nexus ---
   Nexus host: nexus-lightwell-nexus-xxxxx.apps.cluster-xxxxx.dyn.redhatworkshops.io
-  Nexus namespace: lightwell-nexus-xxxxx
+  ...
 
---- Creating POM ---
-  POM created
---- Creating JAR ---
-  JAR created
---- Creating Maven metadata ---
-  Metadata created
-
---- Uploading to Nexus (lightwell-remediated) ---
+--- Publishing to Nexus (lightwell-remediated) ---
   Uploading POM... HTTP 201
   Uploading JAR... HTTP 201
   Uploading metadata... HTTP 201
 
-=== Remediation injected ===
+--- Discovering TPA ---
+  TPA host: tpa-xxxxx.apps.cluster-xxxxx.dyn.redhatworkshops.io
+  ...
 
-  org.springframework.cloud:spring-cloud-starter-netflix-hystrix:2.2.10.RELEASE.rhlw-00001
-  is now available in https://nexus-lightwell-nexus-xxxxx.apps.cluster-xxxxx.dyn.redhatworkshops.io/repository/lightwell-remediated
+--- Publishing OSV advisories to TPA ---
+  RHLW-2026-xxxxx: Jackson Databind: Denial of service via deeply nested...  HTTP 201
+  RHLW-2026-xxxxx: Jackson Databind: Unsafe deserialization allows remot...  HTTP 201
+  RHLW-2026-xxxxx: Jackson Databind: Input validation bypass leads to in...  HTTP 201
+
+=== Remediation published ===
 ----
+
+Before continuing, open https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`) and navigate to *Advisories*. You should see three new `RHLW-` advisories listing `jackson-databind` vulnerabilities — a denial of service, an unsafe deserialization, and an input validation bypass — all with `2.13.5.rhlw-00001` as the fixed version. If you check the `report-generator-app` SBOM, you will see these vulnerabilities now appear against the current build's `jackson-databind:2.13.5`.
 
 == Watching Renovate React
 
@@ -183,7 +189,7 @@ Return to the https://renovate-operator-renovate-operator.{openshift_cluster_ing
 . Discover your repository
 . Scan `pom.xml` and extract all dependencies
 . Query Nexus for each dependency via the `maven-public` group
-. Find `spring-cloud-starter-netflix-hystrix` has a new version: `2.2.10.RELEASE.rhlw-00001`
+. Find `jackson-databind` has a new version: `2.13.5.rhlw-00001`
 . Create a merge request in GitLab
 
 image::renovate-ui-log-mr-created.png[Renovate log showing MR created for the Lightwell remediation]
@@ -198,15 +204,15 @@ Switch to https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^]. Nav
 
 image::gitlab-renovate-mr.png[Merge requests from Renovate Bot in GitLab]
 
-Open the `[Lightwell]` merge request and inspect the diff. You will see a single change in `pom.xml`:
+Open the `[Lightwell]` merge request and inspect the diff. You will see a single change in `pom.xml` — an explicit version override added to the `jackson-databind` dependency:
 
 [source,diff]
 ----
--        <version>2.2.10.RELEASE</version>
-+        <version>2.2.10.RELEASE.rhlw-00001</version>
+         <artifactId>jackson-databind</artifactId>
++        <version>2.13.5.rhlw-00001</version>
 ----
 
-This is the Lightwell pattern: the upstream version stays the same (`2.2.10.RELEASE`), and the `.rhlw-00001` suffix indicates this is a remediated rebuild that preserves API compatibility.
+This is the Lightwell pattern: the upstream version stays the same (`2.13.5`), and the `.rhlw-00001` suffix indicates this is a remediated rebuild that preserves API compatibility. The original dependency inherited its version from the Spring Boot BOM — Renovate adds an explicit `<version>` element to override it with the remediated build.
 
 Approve and merge the request.
 
@@ -243,34 +249,37 @@ Find the `report-generator-app` and locate the two most recent SBOM versions —
 
 image::tpa-sbom-before.png[TPA showing the old SBOM with the vulnerable version]
 
-In the *old* SBOM:
+In the *old* SBOM, `jackson-databind` is at the unpatched upstream version:
 
 ----
-org.springframework.cloud:spring-cloud-starter-netflix-hystrix @ 2.2.10.RELEASE
+com.fasterxml.jackson.core:jackson-databind @ 2.13.5
 ----
+
+The three `RHLW-` advisories you published earlier match this version, so TPA flags it with vulnerabilities.
 
 image::tpa-sbom-after.png[TPA showing the new SBOM with the remediated version]
 
-In the *new* SBOM:
+In the *new* SBOM, the dependency has been replaced by the Lightwell-remediated build:
 
 ----
-org.springframework.cloud:spring-cloud-starter-netflix-hystrix @ 2.2.10.RELEASE.rhlw-00001
+com.fasterxml.jackson.core:jackson-databind @ 2.13.5.rhlw-00001
 ----
 
-The vulnerable version is gone, replaced by the Lightwell-remediated build. The vulnerability count for this application has decreased.
+Because the OSV advisories list `2.13.5.rhlw-00001` as the fixed version, TPA no longer flags those vulnerabilities. The vulnerability count for this application has decreased — and you can trace exactly which advisories were resolved, when the remediation was applied, and which pipeline produced the patched build.
 
 == Summary
 
 You have just completed the *Quick Win* path:
 
-. A remediated artifact arrived in Nexus
+. A remediated artifact and its OSV vulnerability metadata arrived from the Lightwell Network
+. TPA immediately flagged the unpatched dependency as vulnerable based on the published advisories
 . Renovate detected the new `.rhlw` version and created a merge request
 . You reviewed and approved the change
 . Tekton built and signed the patched application with a SLSA Level 3 compliant software supply chain
 . The remediated application was rolled out into production (in a real environment, this would progress through dev, test, and staging first)
-. TPA confirms the vulnerability is resolved via SBOM comparison
+. TPA confirms the vulnerabilities are resolved — the OSV advisories that flagged the old version no longer match the remediated build
 
-This is the lowest-effort way to start automating Lightwell remediations — no AI, no orchestration, no ticket management. And because the pipeline uses Tekton Chains for signing and attestation, every build meets SLSA Level 3 compliance out of the box.
+This is the lowest-effort way to start automating Lightwell remediations — no AI, no orchestration, no ticket management. The OSV metadata published alongside every remediation means your existing security tooling (TPA, Grype, Trivy, or any OSV-compatible scanner) automatically recognizes the fix without manual CVE-to-patch mapping. And because the pipeline uses Tekton Chains for signing and attestation, every build meets SLSA Level 3 compliance out of the box.
 
 === Tradeoffs
 

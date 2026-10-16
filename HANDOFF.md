@@ -163,7 +163,7 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
 - **GitHub Pages + spell check workflows** added. Antora site deploys to
   Pages on push to main; cspell checks `content/**/*.adoc` on push and PRs.
 - **Showroom Module 2 rewritten** — Renovate web UI flow (OIDC login,
-  Trigger button, Logs), `inject-remediation.sh` attachment script,
+  Trigger button, Logs), `publish-remediation.sh` attachment script,
   `maven-public` registry URL, per-user access control, enterprise
   callouts (auto-merge, 100+ ecosystems, Vault/ExternalSecrets), SLSA
   Level 3 compliance, tradeoffs section.
@@ -286,7 +286,7 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
    → [ADR-016](ADR.md#adr-016--trigger-artifacts-must-be-declared-dependencies-of-a-seeded-app)
 5. **Renovate module content (Module 2) written and tested.** Student creates
    RenovateJob from Showroom terminal, injects fake remediation via
-   `inject-remediation.sh` (attachment), triggers from Renovate web UI, reviews
+   `publish-remediation.sh` (attachment), triggers from Renovate web UI, reviews
    MR in GitLab, watches pipeline. Remaining: screenshots for MR-created log,
    PR activity, GitLab MR, pipeline run, TPA SBOM before/after. ArgoCD
    deployment step is a placeholder pending CD wiring for sample apps.
