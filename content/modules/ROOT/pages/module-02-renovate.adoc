@@ -223,6 +223,8 @@ Open the `[Lightwell]` merge request and inspect the diff. You will see a single
 
 This is the Lightwell pattern: the upstream version stays the same (`2.13.5`), and the `.rhlw-00001` suffix indicates this is a remediated rebuild that preserves API compatibility. The original dependency inherited its version from the Spring Boot BOM — Renovate adds an explicit `<version>` element to override it with the remediated build.
 
+NOTE: In this lab, `jackson-databind` was explicitly pinned in `pom.xml` so Renovate's regex manager could detect it. In production, the https://github.com/lightwell-experience/renovate-config[Lightwell Renovate config^] includes a `pin-transitives` script that automatically discovers *all* transitive dependencies with available Lightwell remediations — including BOM-managed ones — and generates a pinning BOM you import into `dependencyManagement`. This means you do not need to manually pin every dependency; the script handles discovery across the full dependency tree.
+
 Approve and merge the request.
 
 == Watching the Pipeline
