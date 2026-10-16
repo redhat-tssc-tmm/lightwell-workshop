@@ -513,9 +513,13 @@ def remediation_workflow_definition(
         "blast_radius": "${query_tpa.artifacts.blast_radius}",
         "snow_incident": "${snow_create.artifacts.snow_incident}",
     }
+    # Use baked snow_* (same as trigger_common), not bare ${trigger.snow_*} —
+    # EDA Start Orchestrator often omits snow_url from the AO payload, which
+    # left Create SNOW OK (trigger_common) but classify/iter/finalize comments
+    # failing with empty snow_base (seen on cng2l jobs 38/48).
     classify_comment_vars = {
-        "snow_url": "${trigger.snow_url}",
-        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_url": trigger_common["snow_url"],
+        "snow_svc_url": trigger_common["snow_svc_url"],
         "snow_incident": "${snow_create.artifacts.snow_incident}",
         "snow_comment_body": "${classify.artifacts.snow_comment_body}",
         "guid": "${trigger.guid}",
@@ -551,8 +555,8 @@ def remediation_workflow_definition(
         "snow_incident": "${snow_create.artifacts.snow_incident}",
     }
     iter_comment_base = {
-        "snow_url": "${trigger.snow_url}",
-        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_url": trigger_common["snow_url"],
+        "snow_svc_url": trigger_common["snow_svc_url"],
         "snow_incident": "${snow_create.artifacts.snow_incident}",
         "gitlab_path": "${verifier.artifacts.gitlab_path}",
         "approval": "${verifier.artifacts.approval}",
@@ -562,8 +566,8 @@ def remediation_workflow_definition(
     }
     # Impact already_current never reaches Verifier — comment from impact arts.
     iter_comment_already = {
-        "snow_url": "${trigger.snow_url}",
-        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_url": trigger_common["snow_url"],
+        "snow_svc_url": trigger_common["snow_svc_url"],
         "snow_incident": "${snow_create.artifacts.snow_incident}",
         "gitlab_path": "${impact.artifacts.gitlab_path}",
         "approval": "${impact.artifacts.approval}",
@@ -573,8 +577,8 @@ def remediation_workflow_definition(
         "iteration_outcome": "already_current",
     }
     finalize_vars = {
-        "snow_url": "${trigger.snow_url}",
-        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_url": trigger_common["snow_url"],
+        "snow_svc_url": trigger_common["snow_svc_url"],
         "snow_incident": "${snow_create.artifacts.snow_incident}",
         "guid": "${trigger.guid}",
         "snow_comment_body": (

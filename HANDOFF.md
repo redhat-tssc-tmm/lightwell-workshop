@@ -227,7 +227,11 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
    `lw-sdlc-opencode` rulebook + bake-at-publish in `bootstrap-ao-tenant`;
    needs push to `rhpds/lw-sdlc-opencode` + chart merge. Full AO path then
    proven: SNOW INC0023249 → TPA → classify → Impact MR !1 → Verifier →
-   merge → finalize (~2.5 min).
+   merge → finalize (~2.5 min). **Follow-up (cng2l both-trigger):** Create
+   SNOW worked (baked URL) but classify/iter/finalize SNOW Comment nodes
+   still used bare `${trigger.snow_url}` → empty → fail. Fixed in
+   `bootstrap-ao-tenant` comment/finalize vars; AO **v3** republished on
+   `cng2l`.
 
 0a. **Verifier still defaults to GitLab “MR open”**
    (`verifier_use_opencode: false`) until the ephemeral OpenCode skill is
