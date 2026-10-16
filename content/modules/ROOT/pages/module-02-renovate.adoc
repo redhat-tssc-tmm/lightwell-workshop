@@ -8,38 +8,41 @@ This module is a *work in progress*. Steps and screenshots may change before the
 
 *Duration:* 25 minutes
 
-This module walks through *Path 1* — the simplest way to automate Lightwell remediations. No AI, no orchestration. Renovate watches the Lightwell mirror in Nexus for new `.rhlw` versions and creates merge requests to bump your dependencies. Standard CI/CD handles the build and deploy.
+This module walks through *Path 1* — the simplest way to automate Lightwell remediations. No AI, no orchestration. https://docs.renovatebot.com/[Renovate^] watches the Lightwell mirror in Nexus for new `.rhlw` versions and creates merge requests to bump your dependencies. Standard CI/CD handles the build and deploy.
 
-You will remediate the *report-generator-app* — Acme Inc.'s internal report generation service.
+In this lab you will remediate a single app — *report-generator-app* — but in the real world Renovate can manage dozens or hundreds of repositories simultaneously. Enterprises commonly configure it to:
+
+* Auto-merge patch-level updates for low-risk internal services
+* Group related dependency bumps into a single merge request
+* Schedule scans during off-hours to avoid disrupting development
+* Apply different policies per repository or dependency type (e.g. auto-merge test dependencies, require review for production frameworks)
+
+For this workshop we are *not* enabling auto-merge, so you can inspect every result without Renovate acting on its own. See the https://docs.renovatebot.com/[Renovate documentation^] for the full set of configuration options.
 
 == Understanding Renovate and the Lightwell Preset
 
-Renovate is an open source dependency update tool. It scans your source repositories, compares dependency versions against a registry, and creates merge requests when newer versions are available.
-
-For Lightwell, the key is the *java-remediated* preset from `lightwell-experience/renovate-config`. This preset:
+The key integration point is the *java-remediated* preset from `lightwell-experience/renovate-config`. This preset:
 
 * Disables the standard Maven manager (so Renovate does not propose random upstream bumps)
 * Adds a custom regex manager that reads `pom.xml` and looks up versions in the Lightwell repository
 * Uses a versioning scheme that only bumps the `.rhlw-NNNNN` suffix — keeping the upstream version the same
 
-Open https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^] (username: `{user}`, password: `{password}`). Navigate to the `acme-{guid}/report-generator-app` repository and open `renovate.json`. You will see it extends the Lightwell `java-remediated` preset:
+Open https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^] (username: `{user}`, password: `{password}`). Navigate to the `acme-{guid}/report-generator-app` repository and open `renovate.json`. You will see it extends the Lightwell preset:
 
-[source,json]
+[source,json,role=copypaste]
 ----
 {
   "extends": ["github>lightwell-experience/renovate-config:java-remediated"]
 }
 ----
 
-This preset disables the standard Maven manager and replaces it with a custom regex manager that only looks for `.rhlw` versions in a Lightwell repository. The preset defaults to `packages.redhat.com` (the real Lightwell registry), but since we are using a simulated Lightwell repository in Nexus, the RenovateJob you create next will supply the tenant-specific Nexus URL and credentials at runtime — keeping them out of the source repository.
+The preset defaults to `packages.redhat.com` (the real Lightwell registry), but since we are using a simulated Lightwell repository in Nexus, the RenovateJob you create next will supply your dedicated Nexus URL and credentials at runtime — keeping them out of the source repository.
 
 == Creating the RenovateJob
 
-The Renovate operator is already installed on the cluster. A `renovate-runner` service account and its credentials are provisioned in your tenant namespace. You just need to create a `RenovateJob` custom resource to tell the operator what to scan and how often.
+The Renovate operator is already installed on the cluster. A `renovate-runner` service account and its credentials are provisioned in your namespace. Create a `RenovateJob` custom resource to tell the operator what to scan — run the following command in the terminal on the right:
 
-Run the following in the Showroom terminal:
-
-[source,bash,subs=attributes+]
+[source,yaml,role=execute,subs=attributes+]
 ----
 cat <<'EOF' | sed "s/{guid}/{guid}/g" | oc apply -f -
 apiVersion: renovate-operator.mogenius.com/v1alpha1
@@ -85,117 +88,117 @@ spec:
           {
             "matchManagers": ["custom.regex"],
             "matchDatasources": ["maven"],
-            "registryUrls": ["https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}/repository/lightwell-remediated"]
+            "registryUrls": ["https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}/repository/maven-public"]
+          },
+          {
+            "matchPackageNames": ["com.acme.*:*"],
+            "enabled": false
           }
-        ]
+        ],
+        "dockerfile": { "enabled": false },
+        "github-actions": { "enabled": false }
       }
 EOF
 ----
 
-This creates a RenovateJob that:
+Here is what the key fields do:
 
-* Runs every 5 minutes
-* Scans only `acme-{guid}/report-generator-app` in your GitLab
-* Uses the `renovate-token` secret (a GitLab personal access token for the `renovate-bot` user)
-* Overrides the Renovate config inline to disable rate limits and skip onboarding
+* *schedule* — scan every 5 minutes (you can also trigger runs on demand from the web UI)
+* *secretRef* — GitLab personal access token for the `renovate-bot` user (pre-provisioned)
+* *provider* — connects to your dedicated GitLab instance. The operator also supports `github`, `bitbucket-server`, `gitea`, and other providers — the RenovateJob spec is the same, just change the `provider.name` and `endpoint`.
+* *discoveryFilters* — scopes Renovate to only scan `report-generator-app`. In production you would list all repositories, use wildcards (e.g. `acme-*/*`), or omit this field entirely to scan every repository the bot user can access.
+* *access.adminUsers* — restricts visibility in the Renovate web UI to your user only
+* *renovateConfig* — inline Renovate config that merges with (and overrides) the `renovate.json` in each repository. Key settings:
+** `hostRules` — credentials for your Nexus Maven registry. In this lab the password is inline for simplicity; in production you would store credentials in a secrets manager such as HashiCorp Vault or use the External Secrets Operator to sync them into Kubernetes Secrets, then reference them via environment variables using Renovate's https://docs.renovatebot.com/self-hosted-configuration/#detecthostrulesfromenv[`detectHostRulesFromEnv`^] feature
+** `packageRules` — points the Lightwell custom manager at your `maven-public` group and disables scanning of internal `com.acme.*` packages
+** `dockerfile` / `github-actions` — disabled for this lab. Renovate supports https://docs.renovatebot.com/modules/manager/[over 100 package ecosystems^] including npm, pip, Go modules, Helm charts, Terraform providers, and container images. You enable or disable each manager independently — for example, `"npm": { "enabled": true }` would add JavaScript dependency scanning alongside the Java Lightwell preset. You can also configure https://docs.renovatebot.com/configuration-options/#automerge[auto-merge^] for low-risk dependency classes (e.g. test-only updates, patch-level bumps) so they land without human review.
 
-The RenovateJob will run a *discovery* phase first (finding repositories), then an *executor* phase for each discovered repo. Since there is no Lightwell remediation in Nexus yet, the first run will find nothing to update.
+NOTE: Under the hood, the Renovate operator manages Kubernetes `RenovateJob` and `RenovateProject` custom resources. You can inspect them with `oc get renovatejobs` and `oc get renovateprojects`. In a production environment, these resources would typically be managed by ArgoCD alongside your other GitOps-managed infrastructure.
 
-== Injecting a Fake Remediation
+== Viewing Your Job in the Renovate Web UI
 
-Now simulate a new Lightwell remediation arriving. You will upload a remediated version of `spring-cloud-starter-netflix-hystrix` (one of the vulnerable dependencies in `report-generator-app`) into your Nexus `lightwell-remediated` repository.
+Open the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate operator web UI^] and log in with your OpenShift credentials (`{user}` / `{password}`). You will see your RenovateJob listed — look for `acme-{guid}/report-generator-app`.
 
-First, create the Maven metadata:
+image::renovate-ui-job-list.png[RenovateJob listed in the web UI]
 
-[source,bash,subs=attributes+]
+Since there is no Lightwell remediation in Nexus yet, the first run will find nothing to update. Rather than waiting for the next scheduled tick, click *Trigger* or *Trigger All* to force an immediate run.
+
+image::renovate-ui-trigger.png[Triggering a Renovate run from the web UI]
+
+Click the *Logs* button to view the running log or the log from a completed run. You will see Renovate discover your repository, scan `pom.xml`, query Nexus for each dependency, and find no Lightwell updates available.
+
+image::renovate-ui-log-no-updates.png[Renovate log showing no updates found]
+
+== A New Lightwell Remediation Becomes Available
+
+Now simulate a new Lightwell remediation arriving. The xref:attachment$inject-remediation.sh[inject-remediation.sh] script uploads a remediated version of a dependency into your Nexus `lightwell-remediated` repository — the same thing the Lightwell Network does in production.
+
+Run the following command in the terminal on the right to inject a remediated build of Netflix Hystrix (one of the vulnerable dependencies in `report-generator-app`):
+
+[source,bash, role=execute]
 ----
-NEXUS_HOST="nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}"
-NEXUS_PASS=$(oc get secret nexus-admin-secret -n lightwell-nexus-{guid} -o jsonpath='{.data.password}' | base64 -d)
-
-# Create a minimal POM
-cat > /tmp/hystrix-fix.pom <<'POMEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-    <modelVersion>4.0.0</modelVersion>
-    <groupId>org.springframework.cloud</groupId>
-    <artifactId>spring-cloud-starter-netflix-hystrix</artifactId>
-    <version>2.2.10.RELEASE.rhlw-00001</version>
-    <name>Hystrix (Lightwell Remediated)</name>
-    <description>Lightwell-remediated build — fixes known CVEs in Netflix Hystrix</description>
-</project>
-POMEOF
-
-# Create a placeholder JAR
-echo "remediated" > /tmp/placeholder.txt && jar cf /tmp/hystrix-fix.jar /tmp/placeholder.txt 2>/dev/null || zip /tmp/hystrix-fix.jar /tmp/placeholder.txt
-
-# Upload POM
-curl -sk -u "admin:${NEXUS_PASS}" -X PUT \
-  "https://${NEXUS_HOST}/repository/lightwell-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/2.2.10.RELEASE.rhlw-00001/spring-cloud-starter-netflix-hystrix-2.2.10.RELEASE.rhlw-00001.pom" \
-  -H "Content-Type: application/xml" --data-binary @/tmp/hystrix-fix.pom
-
-# Upload JAR
-curl -sk -u "admin:${NEXUS_PASS}" -X PUT \
-  "https://${NEXUS_HOST}/repository/lightwell-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/2.2.10.RELEASE.rhlw-00001/spring-cloud-starter-netflix-hystrix-2.2.10.RELEASE.rhlw-00001.jar" \
-  -H "Content-Type: application/java-archive" --data-binary @/tmp/hystrix-fix.jar
-
-# Upload maven-metadata.xml
-cat > /tmp/hystrix-metadata.xml <<'METAEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<metadata>
-  <groupId>org.springframework.cloud</groupId>
-  <artifactId>spring-cloud-starter-netflix-hystrix</artifactId>
-  <versioning>
-    <latest>2.2.10.RELEASE.rhlw-00001</latest>
-    <release>2.2.10.RELEASE.rhlw-00001</release>
-    <versions>
-      <version>2.2.10.RELEASE.rhlw-00001</version>
-    </versions>
-  </versioning>
-</metadata>
-METAEOF
-
-curl -sk -u "admin:${NEXUS_PASS}" -X PUT \
-  "https://${NEXUS_HOST}/repository/lightwell-remediated/org/springframework/cloud/spring-cloud-starter-netflix-hystrix/maven-metadata.xml" \
-  -H "Content-Type: application/xml" --data-binary @/tmp/hystrix-metadata.xml
-
-echo "Remediation uploaded to Nexus."
+bash /showroom/repo/content/modules/ROOT/attachments/inject-remediation.sh \
+  org.springframework.cloud:spring-cloud-starter-netflix-hystrix:2.2.10.RELEASE \
+  rhlw-00001 \
+  "Netflix Hystrix"
 ----
 
-You have just simulated what the Lightwell Network does in production: publish a remediated build of an open source component with a `.rhlw-00001` suffix, alongside its Maven metadata.
+The script discovers your Nexus instance automatically, creates a minimal POM and JAR with the `.rhlw-00001` version suffix, and uploads them alongside Maven metadata. You should see output like this:
+
+[source,text]
+----
+=== Injecting Lightwell Remediation ===
+
+  Package:     org.springframework.cloud:spring-cloud-starter-netflix-hystrix
+  Base version: 2.2.10.RELEASE
+  LW version:  2.2.10.RELEASE.rhlw-00001
+  Description: Netflix Hystrix
+
+--- Discovering Nexus ---
+  Nexus host: nexus-lightwell-nexus-xxxxx.apps.cluster-xxxxx.dyn.redhatworkshops.io
+  Nexus namespace: lightwell-nexus-xxxxx
+
+--- Creating POM ---
+  POM created
+--- Creating JAR ---
+  JAR created
+--- Creating Maven metadata ---
+  Metadata created
+
+--- Uploading to Nexus (lightwell-remediated) ---
+  Uploading POM... HTTP 201
+  Uploading JAR... HTTP 201
+  Uploading metadata... HTTP 201
+
+=== Remediation injected ===
+
+  org.springframework.cloud:spring-cloud-starter-netflix-hystrix:2.2.10.RELEASE.rhlw-00001
+  is now available in https://nexus-lightwell-nexus-xxxxx.apps.cluster-xxxxx.dyn.redhatworkshops.io/repository/lightwell-remediated
+----
 
 == Watching Renovate React
 
-Wait for the next Renovate tick (up to 5 minutes). Watch for the executor pod to spin up and complete:
+Return to the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate web UI^] and click *Trigger* or *Trigger All* to force an immediate run. Once the execution starts, click *Logs* to watch it in real time. This time you will see Renovate:
 
-[source,bash,subs=attributes+]
-----
-oc get pods -n {user}-renovate -l renovate-operator.mogenius.com/type=executor --watch
-----
+. Discover your repository
+. Scan `pom.xml` and extract all dependencies
+. Query Nexus for each dependency via the `maven-public` group
+. Find `spring-cloud-starter-netflix-hystrix` has a new version: `2.2.10.RELEASE.rhlw-00001`
+. Create a merge request in GitLab
 
-When the pod reaches `Completed` status, press `Ctrl+C` to stop watching.
+image::renovate-ui-log-mr-created.png[Renovate log showing MR created for the Lightwell remediation]
 
-Now inspect what Renovate decided. The operator records PR activity on the `RenovateProject` resource:
+Once the run completes, the UI updates to show the created merge request with the `[Lightwell]` prefix in the title.
 
-[source,bash,subs=attributes+]
-----
-oc get renovateproject -n {user}-renovate -o json | jq '.items[].status.prActivity'
-----
-
-Look for entries showing:
-
-* `"result": "pr-created"` — the merge request was created
-* `"newVersion"` containing `.rhlw-00001` — the Lightwell remediated version
-* `"prTitle"` showing the `[Lightwell]` prefix
-
-You can also browse run history and logs in the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate operator web UI^] (no login required). The UI shows all tenants' runs — type `{guid}` into the search box to filter to yours.
+image::renovate-ui-pr-activity.png[PR activity showing the Lightwell remediation MR]
 
 == Reviewing and Approving the MR
 
-Switch to https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab]. Navigate to the `acme-{guid}/report-generator-app` repository. You should see a new merge request from `Renovate Bot`.
+Switch to https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^]. Navigate to the `acme-{guid}/report-generator-app` repository, then click *Merge requests* on the left. You should see a new merge request from `Renovate Bot` with the `[Lightwell]` prefix in the title.
 
-Open the merge request and inspect the diff. You will see a single change in `pom.xml`:
+image::gitlab-renovate-mr.png[Merge requests from Renovate Bot in GitLab]
+
+Open the `[Lightwell]` merge request and inspect the diff. You will see a single change in `pom.xml`:
 
 [source,diff]
 ----
@@ -207,9 +210,13 @@ This is the Lightwell pattern: the upstream version stays the same (`2.2.10.RELE
 
 Approve and merge the request.
 
-== Watching the Pipeline and Deployment
+== Watching the Pipeline
 
-Merging the MR triggers a Tekton pipeline run. Switch to the OpenShift Console and navigate to *Pipelines* in the project namespace. Watch the pipeline:
+Merging the MR triggers a Tekton pipeline run. Switch to the OpenShift Console and navigate to *Pipelines* in the `build-{guid}` namespace.
+
+image::pipeline-run-renovate.png[Tekton pipeline building the remediated app]
+
+Watch the pipeline:
 
 . *Clone* — fetches the updated source from GitLab
 . *Build* — compiles the application with the remediated dependency
@@ -217,39 +224,62 @@ Merging the MR triggers a Tekton pipeline run. Switch to the OpenShift Console a
 . *Sign* — signs the container image using Trusted Artifact Signer
 . *Push* — pushes the signed image to the registry
 
-When the pipeline completes, ArgoCD detects the new image and deploys it to production. Check the https://openshift-gitops-server-openshift-gitops.{openshift_cluster_ingress_domain}[ArgoCD console] (log in via OpenShift) to confirm the application is synced and healthy.
+At this point, the application is remediated and the new container image is built, signed, and ready to go into production.
 
-== Comparing SBOMs
+== Deploying to Production with OpenShift GitOps
 
-Navigate to https://tpa-{guid}.{openshift_cluster_ingress_domain}[TPA] (log in via SSO with `{user}` / `{password}`) and find the `report-generator-app`. Compare the SBOM from the previous build with the new one.
+[WARNING]
+====
+This section is a *placeholder* — the ArgoCD deployment configuration for the sample applications is still being finalized.
+====
 
-In the old SBOM, you will see:
+In a production environment, ArgoCD would detect the new container image and automatically deploy it through your configured stages (test, staging, production), each with its own sync policy and approval gate. For this workshop, the pipeline produces the image and the deployment step will be added in a future update.
+
+== Comparing SBOMs — Proving the Fix
+
+The whole point of this exercise is to prove that the vulnerability is resolved. Navigate to https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`).
+
+Find the `report-generator-app` and locate the two most recent SBOM versions — one from before the remediation and one from after.
+
+image::tpa-sbom-before.png[TPA showing the old SBOM with the vulnerable version]
+
+In the *old* SBOM:
 
 ----
 org.springframework.cloud:spring-cloud-starter-netflix-hystrix @ 2.2.10.RELEASE
 ----
 
-In the new SBOM:
+image::tpa-sbom-after.png[TPA showing the new SBOM with the remediated version]
+
+In the *new* SBOM:
 
 ----
 org.springframework.cloud:spring-cloud-starter-netflix-hystrix @ 2.2.10.RELEASE.rhlw-00001
 ----
 
-The vulnerable version is gone, replaced by the Lightwell-remediated build. The CVE is resolved.
+The vulnerable version is gone, replaced by the Lightwell-remediated build. The vulnerability count for this application has decreased.
 
 == Summary
 
 You have just completed the *Quick Win* path:
 
-. A remediated artifact arrived in Nexus (you injected it)
-. Renovate detected the new version and created a merge request
+. A remediated artifact arrived in Nexus
+. Renovate detected the new `.rhlw` version and created a merge request
 . You reviewed and approved the change
-. Tekton built and signed the patched application
-. ArgoCD deployed it to production
-. The SBOM confirms the fix
+. Tekton built and signed the patched application with a SLSA Level 3 compliant software supply chain
+. The remediated application was rolled out into production (in a real environment, this would progress through dev, test, and staging first)
+. TPA confirms the vulnerability is resolved via SBOM comparison
 
-No AI, no orchestration, no ticket management — just Renovate watching for Lightwell remediations and standard CI/CD doing the rest. This is the lowest-effort way to start automating Lightwell remediations.
+This is the lowest-effort way to start automating Lightwell remediations — no AI, no orchestration, no ticket management. And because the pipeline uses Tekton Chains for signing and attestation, every build meets SLSA Level 3 compliance out of the box.
 
-The next module shows what happens when you add orchestration, AI, and enterprise workflow management on top.
+=== Tradeoffs
+
+The Quick Win path works well for a handful of applications and a manageable volume of remediations. But it has limits:
+
+* *Scale* — when Lightwell publishes dozens or hundreds of remediations per week across your portfolio, the merge request volume becomes unmanageable for human reviewers.
+* *Context* — Renovate creates merge requests mechanically. It does not assess business risk, check whether the affected application is customer-facing or internal, or correlate with your ITSM system.
+* *Auto-merge helps, but only so far* — Renovate's maintainers https://docs.renovatebot.com/key-concepts/automerge/[recommend automerging^] for updates where you would click "merge" anyway: lock file maintenance, dev-only dependencies, patch-level bumps with good test coverage. But for production frameworks, compliance-sensitive services, or anything without strong test coverage, human review remains essential — and at scale, that review needs context that Renovate alone cannot provide.
+
+For organizations that need to handle volume, assess risk, and maintain an audit trail, the next module introduces the *Full Automation* path — where Ansible Orchestrator, AI agents, and ITSM (IT Service Management) systems work together to triage, assess, and route remediations based on business context.
 
 Continue to xref:module-03-ai-remediation.adoc[Module 3: Full Automation — AI-Driven Remediation].

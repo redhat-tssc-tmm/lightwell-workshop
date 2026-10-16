@@ -62,13 +62,13 @@ You can watch the event arrive in the Orchestrator console:
 * Username: `{user}`
 * Password: `{password}`
 
-Navigate to the workflow executions view. You should see a new execution starting for your tenant's project (`lightwell-{guid}`).
+Navigate to the workflow executions view. You should see a new execution starting for your project (`lightwell-{guid}`).
 
 == Observing the Orchestrator Workflow
 
 The Orchestrator runs a multi-step workflow:
 
-. *Query TPA* — the workflow calls RHTPA with the CVE identifier and asks: which of this tenant's applications contain the affected component?
+. *Query TPA* — the workflow calls RHTPA with the CVE identifier and asks: which of your applications contain the affected component?
 . *Identify affected apps* — TPA returns the list based on SBOM data. In this case, both `wire-transfer-svc` and `benefits-mgmt-app` are affected.
 . *Assess risk* — the workflow evaluates each application's risk profile. `wire-transfer-svc` is flagged as high risk (customer-facing, compliance requirements). `benefits-mgmt-app` is classified as low risk (internal, no compliance mandate).
 . *Dispatch AI agents* — for each affected application, an AI agent generates the appropriate merge request, including a risk assessment summary.
