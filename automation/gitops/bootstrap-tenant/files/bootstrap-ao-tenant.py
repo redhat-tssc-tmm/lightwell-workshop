@@ -11,9 +11,9 @@ not see other tenants' workflow lists. For each lab tenant this script ensures:
   3. EDA bridge service account + client_credentials in that project
   4. AO credential for AAP Controller (launch job templates)
   5. Published ``Lightwell Remediation`` workflow — SNOW → Query TPA →
-     classify → for-each (Impact draft MR → Verifier → Switch/Approval →
-     merge) → SNOW finalize; optional GitLab resume Verifier (guid-scoped
-     EDA webhook paths so tenants cannot trigger each other)
+     classify → for-each (Impact draft MR → Verifier → if auto_approve /
+     else Approval → merge) → SNOW finalize; optional GitLab resume Verifier
+     (guid-scoped EDA webhook paths so tenants cannot trigger each other)
   6. Writes client_id / client_secret into a Kubernetes Secret for EDA bootstrap
 
 Requires env:
@@ -450,7 +450,7 @@ def remediation_workflow_definition(
 ) -> dict:
     """Multi-app remediation: SNOW → TPA → classify → for-each → finalize.
 
-    In-run Verifier + Switch(approval) + merge is the only path. GitLab MR-open
+    In-run Verifier + if(auto_approve)/else Approval + merge is the only path. GitLab MR-open
     → Resume → mr_verifier_legacy was removed — it dual-fired Verifier and raced
     the in-loop agent.
     """
@@ -545,6 +545,18 @@ def remediation_workflow_definition(
         "verifier_status": "${verifier.artifacts.verifier_status}",
         "guid": "${trigger.guid}",
     }
+    # Impact already_current never reaches Verifier — comment from impact arts.
+    iter_comment_already = {
+        "snow_url": "${trigger.snow_url}",
+        "snow_svc_url": "${trigger.snow_svc_url}",
+        "snow_incident": "${snow_create.artifacts.snow_incident}",
+        "gitlab_path": "${impact.artifacts.gitlab_path}",
+        "approval": "${impact.artifacts.approval}",
+        "merge_request_iid": "${impact.artifacts.merge_request_iid}",
+        "verifier_status": "n/a",
+        "guid": "${trigger.guid}",
+        "iteration_outcome": "already_current",
+    }
     finalize_vars = {
         "snow_url": "${trigger.snow_url}",
         "snow_svc_url": "${trigger.snow_svc_url}",
@@ -561,7 +573,8 @@ def remediation_workflow_definition(
         "name": "Lightwell Remediation",
         "description": (
             "Nexus→EDA→AO: SNOW create → Query TPA → classify → "
-            "for-each (Impact → Verifier → Switch approval → merge) → SNOW finalize"
+            "for-each (Impact → if already_current else Verifier → "
+            "if auto_approve else Approval → merge) → SNOW finalize"
         ),
         "schema_version": "2.0.0",
         "triggers": [
@@ -640,6 +653,18 @@ def remediation_workflow_definition(
                 integration_id=aap_integration_id,
                 continue_on_failure=True,
             ),
+            {
+                # OpenCode / pom already on fix_version → skip Verifier+merge.
+                # Impact set_stats iteration_outcome=already_current|mr_opened.
+                "id": "impact_already",
+                "name": "Already current?",
+                "type": "condition",
+                "parameters": {
+                    "condition": (
+                        '${impact.artifacts.iteration_outcome} == "already_current"'
+                    ),
+                },
+            },
             _aap_jt_node(
                 "verifier",
                 "MR Verifier",
@@ -663,31 +688,17 @@ def remediation_workflow_definition(
                 },
             },
             {
-                "id": "approval_switch",
-                "name": "Approval policy",
-                "type": "switch",
+                # Binary if/else — do NOT use switch with default_port equal to a
+                # case port (AO: "Case port 'auto_approve' conflicts with
+                # default_port"). Value must not be bare "auto" (Ansible/AO
+                # reserved); policy artifact is auto_approve | needs_approval.
+                "id": "approval_auto",
+                "name": "Auto-approve?",
+                "type": "condition",
                 "parameters": {
-                    # Port/value MUST NOT be bare "auto" (Ansible/AO reserved).
-                    # auto_approve → merge immediately; needs_approval → human
-                    # "Approve remediation MR" node. AO fails the switch when no
-                    # case matches — default_port alone is not enough.
-                    "cases": [
-                        {
-                            "port": "auto_approve",
-                            "label": "Auto-approve merge",
-                            "condition": (
-                                '${verifier.artifacts.approval} == "auto_approve"'
-                            ),
-                        },
-                        {
-                            "port": "needs_approval",
-                            "label": "Needs approval",
-                            "condition": (
-                                '${verifier.artifacts.approval} == "needs_approval"'
-                            ),
-                        },
-                    ],
-                    "default_port": "auto_approve",
+                    "condition": (
+                        '${verifier.artifacts.approval} == "auto_approve"'
+                    ),
                 },
             },
             {
@@ -735,6 +746,16 @@ def remediation_workflow_definition(
                 continue_on_failure=True,
             ),
             _aap_jt_node(
+                "snow_iter_already",
+                "SNOW iteration (already current)",
+                JT_SNOW_ITER,
+                aap_org,
+                aap_credential_id,
+                iter_comment_already,
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            _aap_jt_node(
                 "snow_iter_fail",
                 "SNOW iteration (verifier fail)",
                 JT_SNOW_ITER,
@@ -773,20 +794,18 @@ def remediation_workflow_definition(
             {"from": "snow_classify_comment", "to": "apps_loop"},
             # for-each body
             {"from": "apps_loop", "to": "impact", "from_port": "iterate"},
-            {"from": "impact", "to": "verifier"},
+            {"from": "impact", "to": "impact_already"},
+            {
+                "from": "impact_already",
+                "to": "snow_iter_already",
+                "from_port": "true",
+            },
+            {"from": "impact_already", "to": "verifier", "from_port": "false"},
             {"from": "verifier", "to": "verifier_ok"},
-            {"from": "verifier_ok", "to": "approval_switch", "from_port": "true"},
+            {"from": "verifier_ok", "to": "approval_auto", "from_port": "true"},
             {"from": "verifier_ok", "to": "snow_iter_fail", "from_port": "false"},
-            {
-                "from": "approval_switch",
-                "to": "merge_auto",
-                "from_port": "auto_approve",
-            },
-            {
-                "from": "approval_switch",
-                "to": "human_approval",
-                "from_port": "needs_approval",
-            },
+            {"from": "approval_auto", "to": "merge_auto", "from_port": "true"},
+            {"from": "approval_auto", "to": "human_approval", "from_port": "false"},
             {"from": "human_approval", "to": "merge_approved", "from_port": "approved"},
             {
                 "from": "human_approval",
