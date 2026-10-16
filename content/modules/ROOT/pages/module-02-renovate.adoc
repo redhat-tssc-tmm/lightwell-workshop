@@ -173,6 +173,16 @@ The script discovers your Nexus and TPA instances automatically, publishes the r
           https://<tpa-host>
 ----
 
+== Verifying the Remediation in Nexus
+
+Open https://nexus-lightwell-nexus-{guid}.{openshift_cluster_ingress_domain}[Nexus^] (username: `admin`, password: `{password}`) and click *Browse* in the left navigation. Select the `lightwell-remediated` repository. Navigate to `com/fasterxml/jackson/core/jackson-databind/2.13.5.rhlw-00001/` — you should see the POM and JAR that the publish script uploaded.
+
+NOTE: You are logging in as `admin` because this is your dedicated Nexus instance — each workshop participant gets their own. In a production environment, this would be your organization's artifact repository administrator.
+
+image::nexus-remediation-detail.png[Nexus showing the jackson-databind 2.13.5.rhlw-00001 artifact]
+
+This is the artifact that Renovate will discover when it scans for new Lightwell versions. In production, these artifacts are published by Red Hat to the Lightwell registry; here your Nexus instance acts as a local mirror.
+
 == Confirming the Vulnerability
 
 Before triggering Renovate, verify that TPA has received the advisories and linked them to your application.
@@ -183,7 +193,7 @@ image::tpa-rhlw-advisories.png[TPA Advisories showing the RHLW advisories for ja
 
 Click on one of the RHLW advisories, then click the *Vulnerabilities* tab. You will see the CVE that this remediation addresses. Click the CVE for details — severity, description, and affected versions.
 
-Now click the *Related SBOMs* tab. This shows every application whose SBOM contains the affected package, including `report-generator-app`.
+Near the bottom under the *Related SBOMs* section, it shows every application whose SBOM contains the affected package, including `report-generator-app` (sort by date to see the most recent SBOM first). This is how TPA automatically flags vulnerable applications — it matches the OSV advisories against the SBOMs you have uploaded.
 
 image::tpa-rhlw-related-sboms.png[TPA showing report-generator-app in the Related SBOMs tab]
 
@@ -193,27 +203,27 @@ image::tpa-sbom-vulns-before.png[TPA showing the total vulnerability count for r
 
 == Watching Renovate React
 
-Return to the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate web UI^] and click *Trigger* or *Trigger All* to force an immediate run. Once the execution starts, click *Logs* to watch it in real time. This time you will see Renovate:
+Return to the https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate web UI^] and click *Trigger* or *Trigger All* to force an immediate run (or it may have already automatically run if you waited long enough.) Once the execution starts or has completed, click *Logs* to see what it did (you can expand each log entry to see details). This time you will see Renovate:
 
 . Discover your repository
 . Scan `pom.xml` and extract all dependencies
 . Query Nexus for each dependency via the `maven-public` group
 . Find `jackson-databind` has a new version: `2.13.5.rhlw-00001`
-. Create a merge request in GitLab
+. Create a merge request (MR) in GitLab (future runs will not make a new MR if the previous one is still open)
 
 image::renovate-ui-log-mr-created.png[Renovate log showing MR created for the Lightwell remediation]
 
-Once the run completes, the UI updates to show the created merge request with the `[Lightwell]` prefix in the title.
+Once the run completes, the UI updates to show the created merge request with the `[Lightwell]` prefix in the title. Click the small PR link to open the MR in GitLab (login with `{user}` and `{password}` if needed):
 
 image::renovate-ui-pr-activity.png[PR activity showing the Lightwell remediation MR]
 
 == Reviewing and Approving the MR
 
-Switch to https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^]. Navigate to the `acme-{guid}/report-generator-app` repository, then click *Merge requests* on the left. You should see a new merge request from `Renovate Bot` with the `[Lightwell]` prefix in the title.
+You should see a new merge request from `Renovate Bot` with the `[Lightwell]` prefix in the title. Click to open the `[Lightwell]` merge request:
 
 image::gitlab-renovate-mr.png[Merge requests from Renovate Bot in GitLab]
 
-Open the `[Lightwell]` merge request and inspect the diff. You will see a single change in `pom.xml` — an explicit version override added to the `jackson-databind` dependency:
+Inspect the diff in the _Changes_ tab. You will see a single change in `pom.xml` — an explicit version override added to the `jackson-databind` dependency:
 
 [source,diff]
 ----
@@ -225,11 +235,11 @@ This is the Lightwell pattern: the upstream version stays the same (`2.13.5`), a
 
 NOTE: In this lab, `jackson-databind` was explicitly pinned in `pom.xml` so Renovate's regex manager could detect it. In production, the https://github.com/lightwell-experience/renovate-config[Lightwell Renovate config^] includes a `pin-transitives` script that automatically discovers *all* transitive dependencies with available Lightwell remediations — including BOM-managed ones — and generates a pinning BOM you import into `dependencyManagement`. This means you do not need to manually pin every dependency; the script handles discovery across the full dependency tree.
 
-Approve and merge the request.
+Scroll down and click _Merge_ to approve the merge request and update the source.
 
 == Watching the Pipeline
 
-Merging the MR triggers a Tekton pipeline run. Switch to the OpenShift Console and navigate to *Pipelines* in the `build-{guid}` namespace.
+Merging the MR triggers a Tekton CI pipeline run. Switch to the OpenShift Console (login with `{user}` and `{password}` if needed) and navigate to *Pipelines* and click the *PipelineRuns* tab, and ensure that the `build-{guid}` namespace is selected in the namespace dropdown (this is your dedicated CI namespace where pipelines run). You should see a new pipeline run for the remediated application either running or completed very recently. Click on it to view the details.
 
 image::pipeline-run-renovate.png[Tekton pipeline building the remediated app]
 
@@ -241,42 +251,17 @@ Watch the pipeline:
 . *Sign* — signs the container image using Trusted Artifact Signer
 . *Push* — pushes the signed image to the registry
 
-At this point, the application is remediated and the new container image is built, signed, and ready to go into production.
-
-== Deploying to Production with OpenShift GitOps
-
-[WARNING]
-====
-This section is a *placeholder* — the ArgoCD deployment configuration for the sample applications is still being finalized.
-====
-
-In a production environment, ArgoCD would detect the new container image and automatically deploy it through your configured stages (test, staging, production), each with its own sync policy and approval gate. For this workshop, the pipeline produces the image and the deployment step will be added in a future update.
+At this point, the application is remediated and the new container image is built, signed, and ready to go into production or other environments (e.g. using OpenShift GitOps / ArgoCD). We'll explore how remediated builds are deployed to production in the next module. But for now, it's enough to verify that the vulnerabilities are resolved, which we'll do next.
 
 == Comparing SBOMs — Proving the Fix
 
-The whole point of this exercise is to prove that the vulnerability is resolved. Navigate to https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`).
+This exercise demonstrates that quick wins with Lightwell are real — a remediation can go from publication to verified, signed production build with minimal effort. But a single app and a single dependency is the easy case. For true automation and enterprise integration at scale — dozens of apps, hundreds of dependencies, change management, approvals, audit trails — more is needed. We will get there in the next module. For now, let's verify the fix. Navigate to https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`).
 
-Find the `report-generator-app` and locate the two most recent SBOM versions — one from before the remediation and one from after.
+Click *SBOMs* → *All SBOMs* in the left navigation, then type `report-generator` into the search box. You should see two SBOMs in the list — the original `v1.0-build` and the new build from the Lightwell merge request. Compare the vulnerability counts: the original build shows ~89 vulnerabilities, while the remediated build drops to ~84 — three Critical and two Medium vulnerabilities resolved by a single dependency bump.
 
-image::tpa-sbom-before.png[TPA showing the old SBOM with the vulnerable version]
+image::tpa-sbom-comparison.png[TPA showing both SBOMs with reduced vulnerability count after remediation]
 
-In the *old* SBOM, `jackson-databind` is at the unpatched upstream version:
-
-----
-com.fasterxml.jackson.core:jackson-databind @ 2.13.5
-----
-
-The three `RHLW-` advisories you published earlier match this version, so TPA flags it with vulnerabilities.
-
-image::tpa-sbom-after.png[TPA showing the new SBOM with the remediated version]
-
-In the *new* SBOM, the dependency has been replaced by the Lightwell-remediated build:
-
-----
-com.fasterxml.jackson.core:jackson-databind @ 2.13.5.rhlw-00001
-----
-
-Because the OSV advisories list `2.13.5.rhlw-00001` as the fixed version, TPA no longer flags those vulnerabilities. The vulnerability count for this application has decreased — and you can trace exactly which advisories were resolved, when the remediation was applied, and which pipeline produced the patched build.
+That is the Lightwell value in one screenshot: the same application, the same upstream version of `jackson-databind`, but the remediated `.rhlw-00001` build eliminates known CVEs without changing your application code or upgrading to an untested major version.
 
 == Summary
 
@@ -298,8 +283,8 @@ The Quick Win path works well for a handful of applications and a manageable vol
 
 * *Scale* — when Lightwell publishes dozens or hundreds of remediations per week across your portfolio, the merge request volume becomes unmanageable for human reviewers.
 * *Context* — Renovate creates merge requests mechanically. It does not assess business risk, check whether the affected application is customer-facing or internal, or correlate with your ITSM system.
-* *Auto-merge helps, but only so far* — Renovate's maintainers https://docs.renovatebot.com/key-concepts/automerge/[recommend automerging^] for updates where you would click "merge" anyway: lock file maintenance, dev-only dependencies, patch-level bumps with good test coverage. But for production frameworks, compliance-sensitive services, or anything without strong test coverage, human review remains essential — and at scale, that review needs context that Renovate alone cannot provide.
+* *Auto-merge helps, but only so far* — https://docs.renovatebot.com/key-concepts/automerge/[auto-merge^] is great for updates where you would click "merge" anyway: lock file maintenance, dev-only dependencies, patch-level bumps with good test coverage. But for production frameworks, compliance-sensitive services, or anything without strong test coverage, human review remains essential — and at scale, that review needs context that Renovate alone cannot provide.
 
-For organizations that need to handle volume, assess risk, and maintain an audit trail, the next module introduces the *Full Automation* path — where Ansible Orchestrator, AI agents, and ITSM (IT Service Management) systems work together to triage, assess, and route remediations based on business context.
+For organizations that need to handle volume, assess risk, and maintain an audit trail, the next module introduces the *Full Automation* path. OpenShift provides the hybrid cloud platform for running and securing applications at scale. Ansible provides enterprise IT automation at scale. Together with AI agents and your ITSM systems, they triage, assess, and route remediations based on business context.
 
 Continue to xref:module-03-ai-remediation.adoc[Module 3: Full Automation — AI-Driven Remediation].
