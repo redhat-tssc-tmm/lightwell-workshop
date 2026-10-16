@@ -173,11 +173,23 @@ The script discovers your Nexus and TPA instances automatically, publishes the r
           https://<tpa-host>
 ----
 
-Before continuing, open https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`) and navigate to *Advisories*. You should see three new `RHLW-` advisories listing `jackson-databind` vulnerabilities — a denial of service, an unsafe deserialization, and an input validation bypass — all with `2.13.5.rhlw-00001` as the fixed version.
+== Confirming the Vulnerability
 
-image::tpa-rhlw-advisories.png[TPA Advisories showing the three RHLW advisories for jackson-databind]
+Before triggering Renovate, verify that TPA has received the advisories and linked them to your application.
 
-If you check the `report-generator-app` SBOM, you will see these vulnerabilities now appear against the current build's `jackson-databind:2.13.5`.
+Open https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^] (log in via SSO with `{user}` / `{password}`) and navigate to *Advisories*. Type `RHLW` in the search box (or sort by date — the Lightwell advisories will be at the top). You should see the newly published `RHLW-` advisories for `jackson-databind`.
+
+image::tpa-rhlw-advisories.png[TPA Advisories showing the RHLW advisories for jackson-databind]
+
+Click on one of the RHLW advisories, then click the *Vulnerabilities* tab. You will see the CVE that this remediation addresses. Click the CVE for details — severity, description, and affected versions.
+
+Now click the *Related SBOMs* tab. This shows every application whose SBOM contains the affected package, including `report-generator-app`.
+
+image::tpa-rhlw-related-sboms.png[TPA showing report-generator-app in the Related SBOMs tab]
+
+Click on the `report-generator-app` SBOM, then click the *Vulnerabilities* tab. This shows the full list of known vulnerabilities in the application — you should see around 89. Take note of this number — after applying the Lightwell remediation, some of these will be resolved.
+
+image::tpa-sbom-vulns-before.png[TPA showing the total vulnerability count for report-generator-app before remediation]
 
 == Watching Renovate React
 
