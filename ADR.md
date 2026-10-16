@@ -323,6 +323,16 @@ Copy and fill for each new decision:
 | **Decision** | When `sdlc.exposeUi` is true: (1) Deploy `opencode-ui-gate` (same OpenCode image, `python3` reverse proxy from `files/opencode-ui-gate/proxy.py`) that injects a bootstrap into `text/html` responses registering `/app` as an open project and redirecting bare `/` to the `/app` workspace URL. (2) Point Route `opencode-ui` at Service `opencode-ui-gate:8080`. (3) Leave Service `opencode:4096` for AAP/EDA — no HTML injection on the API path. |
 | **Consequences** | Demo browsers see Impact/Verifier transcripts without DevTools. Gate can roll independently of the opencode pod (preserves emptyDir sessions). Drop the gate when upstream auto-adopts the server directory. WebSocket/SSE are tunneled; do not put AAP traffic through the gate. |
 
+## ADR-030 — Renovate OIDC via Keycloak
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-15 |
+| **Title** | Wire the Renovate operator web UI to Keycloak SSO for per-user visibility |
+| **Context** | The Renovate operator web UI shows all tenants' RenovateJobs by default. Without authentication, students could see and trigger each other's jobs. The operator supports OIDC for the web UI and per-job `spec.access` rules for visibility control. |
+| **Decision** | A sync hook Job in `bootstrap-infra/templates/renovate/oidc-setup-job.yaml` creates a `renovate-ui` OIDC client in the Keycloak `sso` realm and stores the client secret in the `renovate-operator` namespace. The operator Helm values enable `auth.oidc` with the SSO issuer URL and redirect callback. Each student's RenovateJob sets `spec.access.adminUsers` to their Keycloak email (`{user}@demo.redhat.com`). The Renovate namespace is `{username}-renovate` (not `sdlc-{guid}`) with an `edit` RoleBinding and a custom Role granting access to `renovatejobs` and `renovateprojects` CRDs. |
+| **Consequences** | Students log in via SSO and only see their own RenovateJobs. The OIDC client uses a wildcard redirect URI (`/*`). The operator matches `adminUsers` against the OIDC email claim, not the username — the `@demo.redhat.com` domain comes from the Keycloak user setup in AgnosticV. If the Keycloak email domain changes, the showroom's `oc apply` and the matching must be updated. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -360,3 +370,4 @@ Copy and fill for each new decision:
 | Impact already_current skips MR poll | ADR-027 |
 | Multi-app AO path + Oct 16 hardening (rollup) | ADR-028 |
 | OpenCode UI gate (web sessions visible) | ADR-029 |
+| Renovate OIDC via Keycloak | ADR-030 |

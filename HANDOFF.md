@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-16 (OpenCode web UI sessions visible via ui-gate)
+Last updated: 2026-10-16 (Renovate OIDC, BeforeHookCreation, showroom Module 2)
 
 ## Where the pieces live
 
@@ -122,6 +122,33 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   a sync hook Job that patches the realm `displayName`.
 - **BuildConfig `triggers: []` drift** fixed — OpenShift strips empty trigger
   arrays, causing perpetual OutOfSync.
+- **Renovate operator web UI wired to Keycloak SSO.** OIDC client
+  `renovate-ui` created by a sync hook Job in `bootstrap-infra`. Students
+  log in with their tenant SSO credentials and only see their own
+  RenovateJobs via `spec.access.adminUsers` (matched on Keycloak email,
+  e.g. `user-{guid}@demo.redhat.com`).
+  → [ADR-030](ADR.md#adr-030--renovate-oidc-via-keycloak)
+- **Renovate namespace** moved from `sdlc-{guid}` (not accessible to tenant
+  users) to `{username}-renovate` with `edit` RoleBinding + custom Role
+  for RenovateJob/RenovateProject CRDs. Students create RenovateJobs from
+  the Showroom terminal.
+- **All hook Jobs switched to `BeforeHookCreation`** delete policy (12 Jobs
+  across tenant and cluster charts). Prevents "spec.template immutable"
+  errors when scripts change between syncs.
+- **SDLC Inventory auto-created** in tenant AAP org. AAP 2.5+ doesn't
+  create a default inventory; the EDA bootstrap script now creates one
+  with a localhost host.
+- **Build namespace RBAC** — tenant user granted `admin` in `build-{guid}`
+  so they can view pipeline runs.
+- **Repo name alignment** — `lightwell-java-remediated` → `lightwell-remediated`
+  across showroom and RenovateJob config (matches ADR-021 naming).
+- **GitHub Pages + spell check workflows** added. Antora site deploys to
+  Pages on push to main; cspell checks `content/**/*.adoc` on push and PRs.
+- **Showroom Module 2 rewritten** — Renovate web UI flow (OIDC login,
+  Trigger button, Logs), `inject-remediation.sh` attachment script,
+  `maven-public` registry URL, per-user access control, enterprise
+  callouts (auto-merge, 100+ ecosystems, Vault/ExternalSecrets), SLSA
+  Level 3 compliance, tradeoffs section.
 - **PaC build infrastructure** per tenant. `build-{guid}` namespace with 3 PaC
   Repository CRs (one per app from `gitlab.appSeeds`), GitLab push webhooks
   pointing at the PaC controller, and secrets (GitLab PAT, Nexus push
@@ -225,13 +252,12 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
    `com.h2database:h2` qualifies (upstream has no `org/apache/struts/`), so
    `benefits-mgmt-app` and `report-generator-app` cannot yet be targets.
    → [ADR-016](ADR.md#adr-016--trigger-artifacts-must-be-declared-dependencies-of-a-seeded-app)
-5. **Renovate module content not yet written.** The Showroom AsciiDoc for the
-   Renovate module needs the student-facing `oc apply` for the RenovateJob CR
-   (templated with Antora `{guid}` / `{openshift_cluster_ingress_domain}`
-   attributes). The `discoveryFilters` must scope to `acme-{guid}/*` or a
-   specific app (e.g. `acme-{guid}/report-generator-app`). Each app repo
-   already has a `renovate.json` with the Lightwell preset + placeholder
-   `hostRules`; the RenovateJob inline config overrides with real Nexus URLs.
+5. **Renovate module content (Module 2) written and tested.** Student creates
+   RenovateJob from Showroom terminal, injects fake remediation via
+   `inject-remediation.sh` (attachment), triggers from Renovate web UI, reviews
+   MR in GitLab, watches pipeline. Remaining: screenshots for MR-created log,
+   PR activity, GitLab MR, pipeline run, TPA SBOM before/after. ArgoCD
+   deployment step is a placeholder pending CD wiring for sample apps.
 6. **Older tenants on `zlvnr` are missing EDA job templates** (provisioned
    before the org-scoping fix). Re-run the bootstrap job or re-order them.
 7. **`publishing-house/spec/modules/*.md` and `spec/design.md` still say
@@ -262,8 +288,15 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   component reported success and left the tenant non-functional. Prefer a loud
   failure at render or bootstrap time over a green sync that does nothing.
   → [ADR-011](ADR.md#adr-011--prefer-fail-closed-over-fail-open)
-- Hook Jobs use `hook-delete-policy: HookSucceeded`, so **absence means
-  success** — do not go looking for the Job afterwards.
+- Hook Jobs now use `hook-delete-policy: BeforeHookCreation` — the old
+  Job is deleted before the new one is created on each sync. Absence
+  between syncs means the previous run completed (check ArgoCD sync
+  result for success/failure).
+- **AgnosticV `common_password` can lack digits.** `lookup('password', ...,
+  chars=['ascii_letters', 'digits'])` is a uniform sample — ~2% chance of
+  all letters, no digits. AO rejects passwords without 3+ character classes.
+  Workaround: the AO bootstrap script should append `1!` to the password,
+  or AgnosticV should guarantee complexity.
 - **Do not trigger within a minute of a tenant sync.** The sync re-runs
   `eda-bootstrap`, which can disable/enable the activation and restart the
   webhook listener; a Nexus POST landing in that gap is lost silently. Seen on
