@@ -243,8 +243,7 @@ for i in 0 1 2; do
     {
       "package": {
         "ecosystem": "Maven",
-        "name": "${GROUP_ID}:${ARTIFACT_ID}",
-        "purl": "pkg:maven/${GROUP_ID}/${ARTIFACT_ID}@${RHLW_VERSION}"
+        "name": "${GROUP_ID}:${ARTIFACT_ID}"
       },
       "versions": [
         "${BASE_VERSION}"
