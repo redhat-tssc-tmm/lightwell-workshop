@@ -229,3 +229,22 @@ remediation never runs. Default to the legacy rulebook unless AO is configured.
 {{- printf "image-registry.openshift-image-registry.svc:5000/%s/%s:%s" $ns $name $tag -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Per-app risk classification as a JSON object keyed by app name, e.g.
+  {"wire-transfer-svc":{"riskClass":"HIGH","riskRationale":"Payment-critical ..."}}
+
+Consumed by the OpenCode agents (APP_RISK_METADATA) to fill the Acme Inc. Risk
+Class row in the remediation MR and to decide whether human review is required.
+Apps without a riskClass default to MEDIUM at the agent, not here, so a missing
+entry is visible rather than silently benign.
+*/}}
+{{- define "bootstrap-tenant.appRiskMetadata" -}}
+{{- $m := dict -}}
+{{- range (.Values.gitlab.appSeeds | default list) -}}
+{{- if .riskClass -}}
+{{- $_ := set $m .name (dict "riskClass" (.riskClass | upper) "riskRationale" (.riskRationale | default "")) -}}
+{{- end -}}
+{{- end -}}
+{{- $m | toJson -}}
+{{- end -}}

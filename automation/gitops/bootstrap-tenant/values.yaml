@@ -23,9 +23,15 @@ gitlab:
   pat: "" # unused by OpenCode; sync-gitlab-pat copies the GitLab root PAT into Secret gitlab-root-pat
   defaultBranch: main
   appSeeds:
+    # riskClass / riskRationale drive the "Acme Inc. Risk Class" row and the
+    # Recommended Action in the remediation MR body. HIGH and CRITICAL mean the
+    # MR says human review is required even when every automated check passes,
+    # so keep this consistent with policy.approval below.
     - name: wire-transfer-svc
       sourceRepo: https://github.com/redhat-ads-tech/wire-transfer-svc.git
       sourceRef: main
+      riskClass: HIGH
+      riskRationale: Payment-critical / PCI-scoped system — requires human review
       # Injected as .lightwell/policy.json during seed (overrides upstream if present).
       policy:
         remediation_owner: ao
@@ -33,12 +39,16 @@ gitlab:
     - name: benefits-mgmt-app
       sourceRepo: https://github.com/redhat-ads-tech/benefits-mgmt-app.git
       sourceRef: main
+      riskClass: LOW
+      riskRationale: Internal HR application — no regulated data
       policy:
         remediation_owner: ao
         approval: auto_approve
     - name: report-generator-app
       sourceRepo: https://github.com/redhat-ads-tech/report-generator-app.git
       sourceRef: main
+      riskClass: LOW
+      riskRationale: Internal reporting tool — no regulated data
       policy:
         remediation_owner: renovate
 

@@ -343,6 +343,16 @@ Copy and fill for each new decision:
 | **Decision** | Keep an AO Path 2 operator helper under [`ao-trigger-helper/`](ao-trigger-helper/): (1) `trigger-nexus-webhook.sh` POSTs a Nexus-shaped `action=CREATED` body to the tenant EDA route (discovered from `tenant-integration` / Route). Two cases map to Acme policies — `needs-approval` → `com.h2database:h2` / wire-transfer; `auto-approve` → `org.flywaydb:flyway-core` / benefits — with unique `.rhlw-HHMMSS` versions. (2) `reset-demo-repos.sh` re-seeds `acme-<guid>/*` from the upstream GitHub sources (same as `create-gitlab-tenant`), re-injects `.lightwell/policy.json`, force-pushes `main`, and cleans open MRs / `update-artifact-*` branches. (3) AO-context docs in [`ao-trigger-helper/docs/`](ao-trigger-helper/docs/): `DEMO-FLOW.md` (intended Path 2 narrative), `architecture.md` (per-tenant wiring), `DEMO-FLOW-INVESTIGATION.md` (dated live vs chart snapshot). Entry: [`ao-trigger-helper/README.md`](ao-trigger-helper/README.md). |
 | **Consequences** | Operators can demo AO without seeding Nexus and reset GitLab apps between runs without re-provisioning the tenant. Docs stay with the helper so Path 2 wiring / investigation are not confused with Showroom or Path 1. Auto-approve still depends on TPA SBOM coverage for the chosen GAV (override `AUTO_APPROVE_GAV` if needed). Scripts are not student Showroom content; Path 1 keeps using `inject-remediation.sh`. Upstream GitHub repos are never modified. |
 
+## ADR-032 — Remediation MR body as the review artifact
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Rich, two-phase MR description for agent remediations |
+| **Context** | The MR opened by `impact-analyzer` carried only artifact, version, GitLab path, a free-text paragraph and the handoff JSON. A reviewer could not see which CVE was addressed, its severity, whether the application is one where dependency changes need sign-off, or whether anything had been tested. The MR is the only artifact a human actually reads in this demo, so it has to carry the decision. |
+| **Decision** | `build_mr_description` renders Summary, Vulnerability Details, Automated Validation, Risk Assessment and Recommended Action; the title is `[LW] <dot> Bump <artifact> to <version> to fix <CVE>`. Filled in **two phases**, because test results do not exist at MR-creation time: `impact-analyzer` writes every validation row as `Pending`, and `mr-verifier` calls the new `gitlab_api.py mr-validation` once the verify Job has run. That command rewrites only the text between `lw:validation` / `lw:action` markers and derives Recommended Action itself (failed check → do not merge; HIGH/CRITICAL risk class → human review; otherwise safe to merge). Advisory data comes from a TPA `/api/v3/vulnerability` lookup added to `query-tpa.yml`; risk class comes from `gitlab.appSeeds[].riskClass` in the tenant chart, surfaced as `APP_RISK_METADATA`. |
+| **Consequences** | A check that nobody reported stays `Pending` rather than defaulting to passed — the table is only worth having if a reviewer can trust it, and both skill docs tell the agents not to invent advisory data or results. The advisory lookup is best-effort: a tenant whose TPA has no advisory still gets the MR, with "not referenced" / "not scored" in place of fabricated values. `riskClass` and `policy.approval` are two separate knobs on the same seed and must be kept consistent by hand. Changing the section layout means updating both the builder and the marker-replacement path together. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -364,6 +374,7 @@ Copy and fill for each new decision:
 | Shared OpenCode build → integrated registry | ADR-013 |
 | App-of-apps infra pattern | ADR-014 |
 | Per-tenant GitLab groups with Acme apps | ADR-015 |
+| Remediation MR body / risk class | ADR-032 |
 | Trigger artifacts must match app poms | ADR-016 |
 | Fake Lightwell / AgnosticV credentials | ADR-016 (contents); install still planned |
 | Spec outlines still say Artifactory… | _(content debt, not an ADR)_ |

@@ -39,6 +39,13 @@ data:
   SNOW_URL: {{ include "bootstrap-tenant.snowUrl" . | quote }}
   SNOW_SVC_URL: {{ include "bootstrap-tenant.snowSvcUrl" . | quote }}
   AAP_ORG: {{ include "bootstrap-tenant.aapOrg" . | quote }}
+  {{- /*
+    Per-app risk classification, keyed by app name. The remediation MR body
+    renders this as the "Acme Inc. Risk Class" row and uses it to decide
+    whether to demand human review, so it has to reach the agent rather than
+    live only in values.yaml.
+  */}}
+  APP_RISK_METADATA: {{ include "bootstrap-tenant.appRiskMetadata" . | quote }}
   AO_ENABLED: {{ include "bootstrap-tenant.orchestratorEnabled" . | quote }}
   AO_BASE_URL: {{ include "bootstrap-tenant.aoBaseUrl" . | quote }}
   AO_PROJECT_NAME: {{ include "bootstrap-tenant.aoProjectName" . | quote }}

@@ -78,6 +78,13 @@ spec:
               value: {{ include "bootstrap-tenant.nexusNamespace" . | quote }}
             - name: NEXUS_REPOSITORIES
               value: {{ printf "%s,%s" (include "bootstrap-tenant.nexusRepoValidated" .) (include "bootstrap-tenant.nexusRepoRemediated" .) | quote }}
+            {{- /*
+              Risk class per app, for the Acme Inc. Risk Class row in the
+              remediation MR. The agent reads this when the AAP session input
+              does not already carry risk_class.
+            */}}
+            - name: APP_RISK_METADATA
+              value: {{ include "bootstrap-tenant.appRiskMetadata" . | quote }}
             - name: GITLAB_URL
               valueFrom:
                 secretKeyRef:

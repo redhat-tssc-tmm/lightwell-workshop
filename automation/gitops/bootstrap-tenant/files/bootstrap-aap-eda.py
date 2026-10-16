@@ -342,6 +342,10 @@ def build_extra_var_yaml() -> str:
         f"opencode_server_username: {env('OPENCODE_SERVER_USERNAME', 'opencode')}",
         f"opencode_server_password: {env('OPENCODE_SERVER_PASSWORD')}",
         f"validate_certs: {env('VALIDATE_CERTS', 'false')}",
+        # Per-app risk classification, so trigger-impact-analyzer can tell the
+        # agent whether this app needs human review. json.dumps keeps the
+        # embedded JSON a single quoted YAML scalar.
+        f"app_risk_metadata: {json.dumps(env('APP_RISK_METADATA', '{}'))}",
         # guid reaches the AO payload and the per-tenant sandbox naming; without
         # it the orchestrator cannot tell which tenant an event came from.
         f"guid: {env('GUID', '')}",

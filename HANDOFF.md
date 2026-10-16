@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-16 (demo investigation re-run on `5trcs`/`cng2l`)
+Last updated: 2026-10-16 (rich remediation MR body, ADR-032)
 
 ## Where the pieces live
 
@@ -222,6 +222,19 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   → [ADR-017](ADR.md#adr-017--keyless-signing-via-tas--tekton-chains)
 
 ## Next up
+
+0a. **Rich remediation MR body** is implemented but **not yet merged or tested
+   on a cluster**. Agent side is
+   [lw-sdlc-opencode#5](https://github.com/rhpds/lw-sdlc-opencode/pull/5)
+   (MR body builder, `mr-validation` subcommand, TPA advisory lookup in
+   `query-tpa.yml`, both SKILL.md files); chart side is on `main`
+   (`gitlab.appSeeds[].riskClass`, `APP_RISK_METADATA`). Needs: merge the PR,
+   rebuild the image, bump the tag in all six places, then run the chain and
+   confirm the validation table flips from Pending to real results.
+   Unverified against a live TPA: the `/api/v3/vulnerability` response field
+   names (`title` / `description` / `average_severity`) were taken from
+   `publish-remediation.sh`, not observed.
+   → [ADR-032](ADR.md#adr-032--remediation-mr-body-as-the-review-artifact)
 
 0. **EDA rulebook must pass `snow_url` / `snow_svc_url` (and friends) in
    `job_args.extra_vars`.** Activation vars are not merged into the Start
