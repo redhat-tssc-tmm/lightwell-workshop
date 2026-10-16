@@ -158,15 +158,20 @@ spec:
       targetPort: http
 {{- if .Values.sdlc.exposeUi }}
 ---
-# The OpenCode server ships an embedded web UI at / that renders each agent
-# session as a readable transcript — the only place the agent's reasoning and
-# tool calls are visible. AAP job output shows just the five tasks that launch
-# the agent, and the pod log shows only server startup. Worth exposing for
-# demos and debugging; the server enforces its own basic auth (opencode /
-# sdlc.opencodeServerPassword), so the route is not anonymous.
+# The OpenCode server ships an embedded web UI that renders each agent session
+# as a readable transcript — the only place the agent's reasoning and tool
+# calls are visible. AAP job output shows just the five tasks that launch the
+# agent, and the pod log shows only server startup.
 #
-# Sessions live in an emptyDir under $HOME=/tmp, so they do not survive a pod
-# restart. Avoid rolling this Deployment mid-demo.
+# The Route targets opencode-ui-gate (not the opencode Service). OpenCode 1.19's
+# SPA keeps open projects in browser localStorage and does not auto-adopt the
+# server cwd (/app), so a fresh browser shows an empty sidebar even though
+# GET /session has the agent sessions. The gate injects a bootstrap that
+# registers /app. AAP/EDA keep using Service opencode:4096 directly.
+# → ADR-029
+#
+# Sessions live in an emptyDir under $HOME=/tmp on the opencode pod, so they
+# do not survive a pod restart. Avoid rolling the opencode Deployment mid-demo.
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
@@ -179,7 +184,7 @@ metadata:
 spec:
   to:
     kind: Service
-    name: opencode
+    name: opencode-ui-gate
   port:
     targetPort: http
   tls:

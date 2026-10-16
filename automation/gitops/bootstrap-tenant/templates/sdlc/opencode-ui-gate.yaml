@@ -1,0 +1,115 @@
+{{- if and .Values.sdlc.enabled .Values.sdlc.exposeUi }}
+{{- /*
+  Browser gate in front of the OpenCode UI Route only. AAP/EDA keep using the
+  opencode Service (:4096) directly. See ADR-029.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencode-ui-gate
+  namespace: {{ include "bootstrap-tenant.sdlcNamespace" . }}
+  labels:
+    app: opencode-ui-gate
+    lightwell.guid: {{ .Values.guid | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  proxy.py: |
+{{ .Files.Get "files/opencode-ui-gate/proxy.py" | indent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode-ui-gate
+  namespace: {{ include "bootstrap-tenant.sdlcNamespace" . }}
+  labels:
+    app: opencode-ui-gate
+    lightwell.guid: {{ .Values.guid | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    checksum/proxy: {{ .Files.Get "files/opencode-ui-gate/proxy.py" | sha256sum }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencode-ui-gate
+  template:
+    metadata:
+      labels:
+        app: opencode-ui-gate
+    spec:
+      serviceAccountName: opencode
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: gate
+          # Same image as OpenCode — already has python3; avoids an extra pull.
+          image: {{ include "bootstrap-tenant.opencodeImage" . | quote }}
+          imagePullPolicy: {{ .Values.sdlc.opencodeImagePullPolicy | default "IfNotPresent" | quote }}
+          command: ["python3", "/gate/proxy.py"]
+          env:
+            - name: OPENCODE_UPSTREAM
+              value: {{ printf "http://opencode.%s.svc:4096" (include "bootstrap-tenant.sdlcNamespace" .) | quote }}
+            - name: GATE_LISTEN_HOST
+              value: "0.0.0.0"
+            - name: GATE_LISTEN_PORT
+              value: "8080"
+            - name: OPENCODE_PROJECT_DIR
+              value: "/app"
+            # HOME so python can write bytecode under /tmp if needed
+            - name: HOME
+              value: /tmp
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          volumeMounts:
+            - name: gate
+              mountPath: /gate
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: gate
+          configMap:
+            name: opencode-ui-gate
+            defaultMode: 0555
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opencode-ui-gate
+  namespace: {{ include "bootstrap-tenant.sdlcNamespace" . }}
+  labels:
+    app: opencode-ui-gate
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  selector:
+    app: opencode-ui-gate
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+{{- end }}

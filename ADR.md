@@ -313,6 +313,16 @@ Copy and fill for each new decision:
 | **Decision** | Treat ADR-022–027 as one delivery arc: (1) **15 Oct** — multi-app AO+SNOW+classify path (create → TPA → classify → for-each Impact/Verifier/approval/merge → finalize; vendored snow-mock; policy files). (2) **16 Oct** — harden merge (undraft then merge), OpenCode idle via `/session/status`, classify = TPA `affected_repos` only, drop EDA/AO legacy MR resume (no dual Verifier), approval as condition not switch, Impact `already_current` short-circuit. Proven on `t8s2n` AO **v18**. |
 | **Consequences** | Demo path is coherent on the tenant when playbooks + AO are republished; GitOps still needs `demo-update` → `rhpds/main` + Argo sync. Auto-approve smoke with a *new* bump still needs an app whose pom is not already on the fix GAV (or a pom rollback). Sibling playbook commits land via tenant GitLab mirror / AAP project sync until chart SCM points at published `lw-sdlc-opencode`. |
 
+## ADR-029 — OpenCode UI gate for web session visibility
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-16 |
+| **Title** | Route the OpenCode web UI through a bootstrap gate; keep AAP on the raw Service |
+| **Context** | On `t8s2n`, `GET /session` returned 26 agent sessions under `directory=/app`, but the embedded web UI showed "No projects open" / empty sidebar. OpenCode 1.19 keeps *open projects* in browser `localStorage` and does not auto-adopt the server cwd (upstream #37096 / #44216; fix still open as #55230). Deep-linking a session ID works once `/app` is seeded; a fresh browser does not. |
+| **Decision** | When `sdlc.exposeUi` is true: (1) Deploy `opencode-ui-gate` (same OpenCode image, `python3` reverse proxy from `files/opencode-ui-gate/proxy.py`) that injects a bootstrap into `text/html` responses registering `/app` as an open project and redirecting bare `/` to the `/app` workspace URL. (2) Point Route `opencode-ui` at Service `opencode-ui-gate:8080`. (3) Leave Service `opencode:4096` for AAP/EDA — no HTML injection on the API path. |
+| **Consequences** | Demo browsers see Impact/Verifier transcripts without DevTools. Gate can roll independently of the opencode pod (preserves emptyDir sessions). Drop the gate when upstream auto-adopts the server directory. WebSocket/SSE are tunneled; do not put AAP traffic through the gate. |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -349,3 +359,4 @@ Copy and fill for each new decision:
 | Approval policy = condition (not switch) | ADR-026 |
 | Impact already_current skips MR poll | ADR-027 |
 | Multi-app AO path + Oct 16 hardening (rollup) | ADR-028 |
+| OpenCode UI gate (web sessions visible) | ADR-029 |

@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-10-16 (multi-app AO path hardened; merge upstream/main)
+Last updated: 2026-10-16 (OpenCode web UI sessions visible via ui-gate)
 
 ## Where the pieces live
 
@@ -20,6 +20,13 @@ Last updated: 2026-10-16 (multi-app AO path hardened; merge upstream/main)
 | Acme sample apps (3) | `redhat-ads-tech/{wire-transfer-svc,benefits-mgmt-app,report-generator-app}` |
 
 ## Recently done
+
+- **OpenCode web UI shows agent sessions.** Route `opencode-ui` now targets
+  `opencode-ui-gate` (HTML bootstrap injecting `/app` into the SPA's open-
+  projects localStorage). Fresh browsers list Impact/Verifier transcripts;
+  AAP still calls Service `opencode:4096` directly. Live on `t8s2n` without
+  restarting the opencode pod. Chart on `demo-update` (Argo still tracks
+  `rhpds/main`). → [ADR-029](ADR.md#adr-029--opencode-ui-gate-for-web-session-visibility)
 
 - **Multi-app AO path (15–16 Oct).** Built the multi-app AO+SNOW+classify
   path (15 Oct), then hardened merge/OpenCode/classify, removed dual-Verifier,
