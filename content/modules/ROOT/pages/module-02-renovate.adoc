@@ -38,6 +38,17 @@ Open https://gitlab-gitlab.{openshift_cluster_ingress_domain}[GitLab^] (username
 
 The preset defaults to `packages.redhat.com` (the production Lightwell registry). In this lab your dedicated Nexus instance acts as a local Lightwell mirror, so the RenovateJob you create next will supply your Nexus URL and credentials at runtime — keeping them out of the source repository.
 
+== Logging In to OpenShift
+
+The commands in this module use `oc` (the OpenShift CLI) to interact with your cluster. Log in as your tenant user by running the following command in the terminal on the right:
+
+[source,bash,role=execute,subs=attributes+]
+----
+oc login -u {user} -p {password} https://kubernetes.default.svc:443 --insecure-skip-tls-verify
+----
+
+You should see `Login successful` and your user name displayed. This gives you access to your dedicated namespaces on the cluster.
+
 == Creating the RenovateJob
 
 The Renovate operator is already installed on the cluster. A `renovate-runner` service account and its credentials are provisioned in your namespace. Create a `RenovateJob` custom resource to tell the operator what to scan — run the following command in the terminal on the right:
