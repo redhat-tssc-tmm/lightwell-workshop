@@ -69,4 +69,6 @@ metadata:
 data:
   NEXUS_WEBHOOK_REPOSITORIES: {{ include "bootstrap-tenant.nexusWebhookRepos" . | quote }}
   EDA_WEBHOOK_URL: {{ include "bootstrap-tenant.edaWebhookUrl" . | quote }}
+  # nexus-reconcile falls back to this when Nexus rejects the in-cluster URL.
+  EDA_WEBHOOK_ROUTE_URL: {{ include "bootstrap-tenant.edaWebhookRouteUrl" . | quote }}
   SKIP_WEBHOOK_SETUP: {{ if .Values.sdlc.enabled }}"false"{{ else }}"true"{{ end }}
