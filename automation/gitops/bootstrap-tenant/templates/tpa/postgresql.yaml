@@ -148,7 +148,10 @@ spec:
             failureThreshold: 10
           resources:
             limits:
-              memory: 1Gi
+              # 1Gi was OOMKilled during Module 3 SBOM ingestion (TPA server
+              # and importer pools busy at once). The request stays at 512Mi
+              # so seats don't reserve more of the shared cluster.
+              memory: 2Gi
               cpu: 500m
             requests:
               memory: 512Mi

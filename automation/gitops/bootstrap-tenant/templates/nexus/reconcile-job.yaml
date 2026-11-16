@@ -51,6 +51,13 @@ spec:
                 configMapKeyRef:
                   name: tenant-integration
                   key: EDA_WEBHOOK_URL
+            # Fallback when Nexus rejects EDA_WEBHOOK_URL (see nexus-reconcile.py).
+            - name: EDA_WEBHOOK_ROUTE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: tenant-integration
+                  key: EDA_WEBHOOK_ROUTE_URL
+                  optional: true
             - name: SKIP_WEBHOOK_SETUP
               valueFrom:
                 configMapKeyRef:
