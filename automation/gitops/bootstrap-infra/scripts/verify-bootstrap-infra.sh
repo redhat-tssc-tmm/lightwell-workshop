@@ -32,7 +32,7 @@ check "AAP CR" "oc get ansibleautomationplatform aap -n aap"
 check "TPA CR" "oc get trustedprofileanalyzer trustedprofileanalyzer-sample -n lightwell-tpa"
 check "OpenCode ImageStream" "oc get imagestream sdlc-opencode -n lightwell-images"
 check "OpenCode BuildConfig" "oc get buildconfig sdlc-opencode -n lightwell-images"
-check "OpenCode ImageStreamTag" "oc get imagestreamtag sdlc-opencode:sha-7447545 -n lightwell-images"
+check "OpenCode ImageStreamTag" "oc get imagestreamtag sdlc-opencode:sha-7971cad -n lightwell-images"
 
 echo ""
 echo "=== Routes ==="

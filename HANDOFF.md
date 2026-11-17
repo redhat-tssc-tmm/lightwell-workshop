@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-11-10 (Deploy-before-Merged race deferred)
+Last updated: 2026-11-17 (OpenCode image pin `sha-7971cad`)
 
 ## Where the pieces live
 
@@ -30,8 +30,9 @@ Last updated: 2026-11-10 (Deploy-before-Merged race deferred)
   `lw-sdlc-opencode` `opencode.json` + skill/agent wording; Impact
   playbook always exports `iteration_outcome` (soft-fail, job stays
   successful); scoped MR poll; Start canvas gates Verifier on
-  `mr_opened` else `snow_iter_impact_fail`. **Still needs:** push image
-  SCM, rebuild `opencode-image`, refresh AAP project, republish AO
+  `mr_opened` else `snow_iter_impact_fail`. Chart pin is now
+  `sha-7971cad` (`lw-sdlc-opencode` main, 17 Nov). **Still needs:** infra
+  sync so `opencode-image` rebuilds, refresh AAP project, republish AO
   Start on tenants. → [ADR-064](ADR.md#adr-064--opencode-question-hang-and-unscoped-mr-poll)
 
 - **Showroom ZT `runner` sidecar CrashLoopBackOff, fixed in the content repo

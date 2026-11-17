@@ -302,7 +302,7 @@ remediation never runs. Default to the legacy rulebook unless AO is configured.
 {{- else -}}
 {{- $ns := .Values.sdlc.opencodeImageNamespace | default "lightwell-images" -}}
 {{- $name := .Values.sdlc.opencodeImageName | default "sdlc-opencode" -}}
-{{- $tag := .Values.sdlc.opencodeImageTag | default "sha-7447545" -}}
+{{- $tag := .Values.sdlc.opencodeImageTag | default "sha-7971cad" -}}
 {{- printf "image-registry.openshift-image-registry.svc:5000/%s/%s:%s" $ns $name $tag -}}
 {{- end -}}
 {{- end -}}

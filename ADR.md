@@ -8,7 +8,7 @@ same change.
 - **HANDOFF.md** — short operational list (what’s done / next / gotchas).
 - **ADR.md** — why we chose it (context, decision, consequences).
 
-Last synced with HANDOFF: 2026-11-10 (ADR-064 implemented — deny question/task + Impact set_stats soft-fail + AO MR gate)
+Last synced with HANDOFF: 2026-11-17 (OpenCode image pin `sha-7971cad`)
 
 ---
 
@@ -683,7 +683,7 @@ Copy and fill for each new decision:
 | **Title** | Headless Impact must not use `question`; MR poll must match the intended bump |
 | **Context** | On `4brjh`, three Module 2 jackson publishes that also hit AO `wire-transfer-svc` (`rhlw-00002` overlapping `00003`, then `00004`). Single opencode Deployment (512Mi/2Gi) stayed healthy (~374Mi, 0 restarts) — **not** an OOM/sizing failure. Run1’s Impact session (`ses_e7e007f20ffe…`) invoked tool `question` asking “Confirm MR … proceed?” and remained `busy` with no operator; Impact’s idle wait exhausted 90 retries (`failed_when: false`), summary was “(no assistant text)”, then `poll-gitlab-mr` selected **any** open `update-artifact-*` MR and bound Run1 to Run2’s MR !2 (`rhlw-00003`). Verifier still passed. Run2/Run3 exited the agent loop and opened their own MRs. Reproduced on `f6rc7` (2026-11-09): Impact job 15 wrote only a risk paragraph (no MR); job 21 spawned a `general` subagent that blocked on `question` while AAP abandoned the session and poll-timed-out. AO then crashed on `impact_already` because a **failed** AAP job publishes **empty** artifacts (`iteration_outcome` missing). |
 | **Decision** | (1) Deny OpenCode `question` **and** `task` for headless agents (`impact-analyzer`, `mr-verifier`) in image `/app/opencode.json`; skill + agent prompt forbid confirm prompts / subagents and require `bump-maven-mr` after the risk paragraph. (2) Scope MR poll to `update-artifact-<sanitized-new_version>`. (3) Two-phase idle wait (must observe busy, then idle); on never-idle / no MR set `iteration_outcome=failed` via `set_stats` and **leave the AAP job successful** so AO receives artifacts — AO discards stats from failed jobs. (4) Start canvas: `impact_already` → `impact_mr_opened` (`iteration_outcome == mr_opened`) → Verifier; else `snow_iter_impact_fail`. (5) Prefer serialising Start Impact per tenant later. |
-| **Consequences** | Overlapping publishes no longer bind the wrong MR via unscoped poll. A stuck/ask agent soft-fails into SNOW instead of a 15‑minute poll + condition crash. Requires image rebuild (`lw-sdlc-opencode`), AAP project SCM refresh, and AO Start republish (`ao-bootstrap`) on live tenants. |
+| **Consequences** | Overlapping publishes no longer bind the wrong MR via unscoped poll. A stuck/ask agent soft-fails into SNOW instead of a 15‑minute poll + condition crash. Chart pin is `sha-7971cad` (`rhpds/lw-sdlc-opencode` `7971cad`, 2026-11-17). Live tenants still need the ImageStream rebuild, AAP project SCM refresh, and AO Start republish (`ao-bootstrap`). |
 | **Relates** | [ADR-004](#adr-004--unattended-opencode-tool-permission), [ADR-027](#adr-027--impact-already_current-skips-mr-poll), [ADR-063](#adr-063--module-2-nexus-publish-must-not-break-start-at-verifier) |
 
 ---
