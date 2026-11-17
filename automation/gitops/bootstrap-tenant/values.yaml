@@ -202,6 +202,12 @@ sdlc:
   edaWebhookRouteUrl: "" # default https://{activation}-{aap.ns}.{ingress}/
   gitlabWebhookTargetUrl: "" # default same as edaWebhookRouteUrl
   exposeUi: true # Route to the OpenCode embedded web UI (agent transcripts); basic-auth protected
+  # OTLP export from Sandbox/opencode into the cluster collector. The tenant
+  # chart does not install Tempo. OpenCode 1.19.6 starts tracing when
+  # OTEL_EXPORTER_OTLP_ENDPOINT is set and tags every span with lightwell.guid.
+  tracing:
+    enabled: true
+    endpoint: http://lightwell-collector.lightwell-observability.svc:4318
   # Must carry agent prompts that read SDLC_SANDBOX_NAMESPACE / EPHEMERAL_NS_PREFIX
   # from env; older images hardcode the shared sdlc-sandboxes namespace.
   # Empty → OpenShift integrated registry (bootstrap-infra BuildConfig → ImageStream):

@@ -10,6 +10,9 @@ metadata:
 spec:
   mode: deployment
   config:
+    extensions:
+      bearertokenauth:
+        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
     receivers:
       otlp:
         protocols:
@@ -24,15 +27,22 @@ spec:
             action: upsert
     exporters:
       otlp/tempo:
-        endpoint: tempo-{{ .Values.tempo.name }}:4317
+        # OpenShift multitenancy puts OTLP on the gateway (TLS, no client cert).
+        # The Tempo container's 4317 listens on localhost for the gateway only.
+        endpoint: tempo-{{ .Values.tempo.name }}-gateway.{{ .Values.namespace }}.svc:4317
+        headers:
+          X-Scope-OrgID: {{ .Values.otel.tenant | quote }}
+        auth:
+          authenticator: bearertokenauth
         tls:
-          insecure: true
-      logging:
+          insecure_skip_verify: true
+      debug:
         verbosity: basic
     service:
+      extensions: [bearertokenauth]
       pipelines:
         traces:
           receivers: [otlp]
           processors: [resource, batch]
-          exporters: [otlp/tempo, logging]
+          exporters: [otlp/tempo, debug]
 {{- end }}

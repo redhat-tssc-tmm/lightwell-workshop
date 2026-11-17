@@ -25,34 +25,17 @@ spec:
             kind: Markdown
             spec:
               text: |-
-                Placeholder dashboard for the agent-sandbox remediation drive.
+                OpenCode on each tenant Sandbox exports OTLP to the cluster collector.
+                Automation Orchestrator still owns the remediation. This board does not.
 
-                Planned panels (task 7.2): active runs, lanes by stage, SandboxClaim
-                Ready latency, recent failures — filter by `lightwell.guid`.
+                In **Observe → Traces**, filter spans with `lightwell.guid="<guid>"`.
+                `session.id` on those spans is the OpenCode session. The AAP Impact
+                job for that remediation stores the same session in its deep link.
+                `gen_ai.request.model` is the model the agent called.
 
-                Until orchestrator metrics exist, use **Observe → Traces** with
-                TraceQL attribute `lightwell.guid` / `lightwell.run_id`.
-      "claims":
-        kind: Panel
-        spec:
-          display:
-            name: Agent-sandbox sandboxes (placeholder query)
-          plugin:
-            kind: StatChart
-            spec:
-              calculation: last-number
-              format:
-                unit: decimal
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    # Series name depends on controller scrape; refine in task 7.2.
-                    query: count(kube_pod_info{namespace="agent-sandbox-system"}) or vector(0)
+                OpenCode 1.19.6 keeps one trace context for the life of the Sandbox
+                process. Compare remediations by `session.id`, not by a separate trace
+                per `rhlw` suffix. A GAV attribute is not on the span.
     layouts:
       - kind: Grid
         spec:
@@ -63,14 +46,8 @@ spec:
           items:
             - x: 0
               "y": 0
-              width: 16
-              height: 6
+              width: 24
+              height: 8
               content:
                 $ref: "#/spec/panels/intro"
-            - x: 16
-              "y": 0
-              width: 8
-              height: 6
-              content:
-                $ref: "#/spec/panels/claims"
 {{- end }}

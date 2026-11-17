@@ -699,6 +699,19 @@ Copy and fill for each new decision:
 
 ---
 
+## ADR-066 — Trace Sandbox agents in a cluster Tempo, keep AO
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-11-17 |
+| **Title** | OpenCode traces go to a shared Tempo; the tenant only exports |
+| **Context** | AO, EDA, and AAP stay the remediation control plane (ADR-065). `Sandbox/opencode` is one long-lived process per tenant, so controller metrics cannot show how an agent did on a given remediation. `lightwell-observability` was sketched for an orchestrator that would emit `lightwell.run_id`. That orchestrator is not the path we are shipping. OpenCode 1.19.6 already exports OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and its spans carry `session.id` and `gen_ai.request.model`. |
+| **Decision** | `bootstrap-infra` installs one `lightwell-observability` stack: Tempo Operator, OpenTelemetry Operator, and Cluster Observability Operator in `openshift-operators`; `TempoMonolithic` (pv, 2Gi), the OTLP collector, the Distributed Tracing and Perses console plugins, and Perses dashboard `lightwell-remediation` in namespace `lightwell-observability`. Each tenant Sandbox sets `OTEL_EXPORTER_OTLP_ENDPOINT` to `http://lightwell-collector.lightwell-observability.svc:4318` and `OTEL_RESOURCE_ATTRIBUTES` including `lightwell.guid`. The tenant chart does not install Tempo, a collector, or a console plugin. AO is unchanged. |
+| **Consequences** | Operators compare remediations in **Observe → Traces** by `lightwell.guid` and `session.id`. The AAP Impact job’s OpenCode deep link is the join to the `rhlw` suffix and the MR. OpenCode 1.19.6 does not start a new trace per prompt, so one Sandbox process is one trace context until the pod is replaced. Lab user `user-<guid>` does not get that console. A Tempo PVC keeps traces across a pod restart. The console plugin skips a Tempo instance with no tenant, so this TempoMonolithic uses OpenShift multitenancy with tenant `lightwell`. The Tempo process only accepts OTLP on localhost; the collector writes to `tempo-lightwell-gateway:4317` with TLS, `X-Scope-OrgID: lightwell`, and the collector ServiceAccount token. That token is allowed by a ClusterRole that can `create` `tempo.grafana.com` resource `lightwell` named `traces`. |
+| **Relates** | [ADR-029](#adr-029--opencode-ui-gate-for-web-session-visibility), [ADR-043](#adr-043--opencode-session-deep-links--summary-in-aapsnow), [ADR-065](#adr-065--opencode-runs-as-an-agent-sandbox-sandbox) |
+
+---
+
 ## Mapping to HANDOFF.md
 
 | Handoff theme | ADR |
@@ -769,3 +782,4 @@ Copy and fill for each new decision:
 | Module 2 publish → Start / Verifier crosstalk | ADR-063 |
 | OpenCode question hang + unscoped MR poll | ADR-064 |
 | OpenCode server is an agent-sandbox Sandbox | ADR-065 |
+| Sandbox agent traces in cluster Tempo; tenant only exports | ADR-066 |

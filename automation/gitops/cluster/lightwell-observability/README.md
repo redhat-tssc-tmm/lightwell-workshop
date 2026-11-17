@@ -12,8 +12,14 @@ Demo observability for the agent-sandbox remediation drive:
 
 Operators install into `openshift-operators`. Workloads live in `lightwell-observability`.
 
-Orchestrator/lane pods should export OTLP to:
+`Sandbox/opencode` in each tenant exports OTLP here. AO, EDA, and AAP stay
+as they are; this chart does not install them and it is not installed per tenant.
 
-`http://lightwell-collector-collector.lightwell-observability.svc:4318`
+```
+http://lightwell-collector.lightwell-observability.svc:4318
+```
 
-(exact Service name follows the OpenTelemetry Operator convention — confirm after first sync).
+OpenCode appends `/v1/traces`. The collector Service name is `<otel.name>-collector`.
+The collector forwards to the Tempo gateway (`tempo-<name>-gateway:4317`, TLS) with
+`X-Scope-OrgID` and its ServiceAccount token. The gateway allows that write
+only when the account can `create` the tenant resource named `traces`.

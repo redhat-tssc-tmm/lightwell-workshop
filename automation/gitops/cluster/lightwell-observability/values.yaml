@@ -22,13 +22,14 @@ operators:
 
 tempo:
   name: lightwell
-  # memory backend is fine for demos; switch to pv for longer retention.
-  storageBackend: memory
+  # pv so a Tempo restart does not drop the remediations from a workshop day.
+  storageBackend: pv
   storageSize: 2Gi
 
 otel:
   name: lightwell
-  # Tenant id header for multi-tenant Tempo gateways; unused for plain TempoMonolithic OTLP.
+  # X-Scope-OrgID on the collector, and the tenant the console plugin lists.
+  # The Traces page ignores a TempoMonolithic with multitenancy disabled.
   tenant: lightwell
 
 uiPlugins:

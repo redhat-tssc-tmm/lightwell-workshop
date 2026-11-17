@@ -69,6 +69,15 @@ spec:
             */}}
             - name: LIGHTWELL_GUID
               value: {{ .Values.guid | quote }}
+            {{- if and .Values.sdlc.tracing .Values.sdlc.tracing.enabled .Values.sdlc.tracing.endpoint }}
+            # OpenCode 1.19 exports when this is set (appends /v1/traces).
+            # Resource attributes land on every span. Per-prompt GAV is not
+            # known here; session.id on the spans joins back to the AAP job.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.sdlc.tracing.endpoint | quote }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ printf "lightwell.guid=%s,lightwell.component=opencode" .Values.guid | quote }}
+            {{- end }}
             - name: TENANT_NAMESPACE
               value: {{ include "bootstrap-tenant.jobNamespace" . | quote }}
             - name: SDLC_SANDBOX_NAMESPACE

@@ -13,4 +13,12 @@ spec:
     traces:
       backend: {{ .Values.tempo.storageBackend }}
       size: {{ .Values.tempo.storageSize }}
+  # The console plugin lists only Tempo instances with OpenShift multitenancy
+  # (OU-467). A single-tenant TempoMonolithic shows up as "no tempo instance".
+  multitenancy:
+    enabled: true
+    mode: openshift
+    authentication:
+      - tenantName: {{ .Values.otel.tenant }}
+        tenantId: {{ .Values.otel.tenant | quote }}
 {{- end }}

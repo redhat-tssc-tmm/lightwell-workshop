@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-11-17 (OpenCode runs as Sandbox/opencode)
+Last updated: 2026-11-17 (Sandbox traces export to cluster Tempo)
 
 ## Where the pieces live
 
@@ -22,6 +22,16 @@ Last updated: 2026-11-17 (OpenCode runs as Sandbox/opencode)
 | AO Path 2 operator helper + docs | this repo — [`ao-trigger-helper/`](ao-trigger-helper/) (scripts + [`docs/`](ao-trigger-helper/docs/)) |
 
 ## Recently done
+
+- **Sandbox agent traces go to a cluster Tempo (17 Nov).** One
+  `lightwell-observability` stack (Tempo pv, OTLP collector, console
+  **Observe → Traces**). Tenant `Sandbox/opencode` only sets
+  `OTEL_EXPORTER_OTLP_ENDPOINT`. The collector writes to the Tempo gateway
+  with its ServiceAccount token (`create` on `tempo.grafana.com` resource
+  `lightwell` / `traces`). AO stays. Compare remediations by
+  `session.id` plus the AAP deep link. OpenCode 1.19.6 does not open a
+  new trace per prompt.
+  → [ADR-066](ADR.md#adr-066--trace-sandbox-agents-in-a-cluster-tempo-keep-ao)
 
 - **OpenCode server is `Sandbox/opencode` (17 Nov).** `bootstrap-infra`
   installs agent-sandbox v1.0.8. The tenant chart no longer renders

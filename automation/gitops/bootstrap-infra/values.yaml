@@ -115,3 +115,9 @@ agentSandbox:
       scrapeTimeout: 10s
       labels:
         release: kube-prometheus-stack
+
+# Shared trace store for Sandbox agents. One Tempo + collector for the cluster.
+# Tenants do not install this; Sandbox/opencode exports OTLP at the endpoint below.
+lightwellObservability:
+  enabled: true
+  namespace: lightwell-observability
