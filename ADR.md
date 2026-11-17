@@ -8,7 +8,7 @@ same change.
 - **HANDOFF.md** — short operational list (what’s done / next / gotchas).
 - **ADR.md** — why we chose it (context, decision, consequences).
 
-Last synced with HANDOFF: 2026-11-04 (ADR-062 ZT runner needs `runtime-automation/` in the content repo)
+Last synced with HANDOFF: 2026-11-10 (ADR-064 implemented — deny question/task + Impact set_stats soft-fail + AO MR gate)
 
 ---
 
@@ -643,16 +643,6 @@ Copy and fill for each new decision:
 | **Decision** | Add a `dechunk()` helper and call it in the buffered HTML branch when upstream was chunked. On the streaming (non-HTML) branch do the opposite — **forward** `Transfer-Encoding: chunked` rather than stripping it — because buffering there would break the SSE stream the live session view runs on, and the client needs the header to decode the framing we are relaying. `dechunk()` returns the input untouched when it does not parse as chunked: silently blanking a body is a worse failure than passing a visible mess. |
 | **Consequences** | Two defects, not one. The HTML corruption is what was reported; stripping `Transfer-Encoding` on the streaming path has been wrong since 16 Oct independently of it, and would show as a session page that loads but never updates. Tested with `gate_itest.py`, which boots the real `proxy.py` against a stub upstream that chunks the way OpenCode does: unpatched it reproduces `body starts b'b44\r\n<!doctype h'`, patched all eight checks pass, plus seven unit cases on `dechunk()` itself. **Not yet exercised against the live OpenCode upstream** — that needs cluster-admin on the tenant's cluster to swap the ConfigMap and restart the gate. Existing tenants pick the fix up on an Argo sync; the gate Deployment carries `checksum/proxy`, so the pod rolls automatically when the ConfigMap content changes. |
 
-## ADR-060 — Agent-sandbox alternative remediation drive
-
-| Field | Content |
-|-------|---------|
-| **Date** | 2026-10-24 |
-| **Title** | Path 2 without AO, EDA, or AAP JTs — orchestrator + lane Claims on branch `agent-sandbox` |
-| **Context** | Default lab Path 2 is Nexus → EDA → AAP → AO canvases → long-lived OpenCode Deployment. That stack does not use kubernetes-sigs/agent-sandbox, splits one remediation across three AO workflows, and is hard to observe as “where are the agents.” We need an **alternative drive** developed on branch `agent-sandbox` that is not invasive to `main` until cutover. |
-| **Decision** | (1) Flag `sdlc.runtime=agent-sandbox` selects the alternative drive; `ao` keeps the legacy drive. (2) On the agent-sandbox drive, Path 2 **MUST NOT** use Automation Orchestrator, Event-Driven Ansible, or AAP Job Templates — webhooks hit a tenant orchestrator Sandbox; work runs in SandboxClaims; OpenCode Impact uses the existing LiteLLM contract inside Claims. (3) **AAP may remain** in cluster provisioning but is out of the remediation story. (4) **AO and EDA are not provisioned/used** for Path 2 on this drive. (5) **Showroom / Antora (`content/`) is out of scope** for this work — a separate content cycle owns Module 3 after the platform demo is delivered. Operator docs (`ao-trigger-helper`, ADR/HANDOFF) describe the agent-sandbox story. Full design: `openspec/changes/agent-sandbox-orchestrator/`. |
-| **Consequences** | Implementation lands on `agent-sandbox` without changing default demo on `main` and **without editing Showroom**. Platform cutover can precede content cutover; students may still see AO wording in Showroom until the content owner lands. Rollback of the platform flag is `sdlc.runtime=ao`. |
-
 ## ADR-061 — Non-AO promote must not start AO Deploy
 
 | Field | Content |
@@ -664,8 +654,6 @@ Copy and fill for each new decision:
 | **Consequences** | Path 1 / Renovate no longer starts AO Deploy. Path 2 AO-owned promotes unchanged. Existing tenants need ConfigMap apply + `cicd-eda-bridge` rollout (ADR-051). Module 2 Nexus publish → Start remains a separate crosstalk (hosted-repo webhooks); out of scope for this ADR. |
 | **Amends** | [ADR-049](#adr-049--deploy-signals-only-the-promoted-app-finalize-soft-skips-orphans) |
 
----
-
 ## ADR-062 — The content repo must ship `runtime-automation/`, even when unused
 
 | Field | Content |
@@ -675,6 +663,28 @@ Copy and fill for each new decision:
 | **Context** | A Lightwell seat (`user-9wjsj-showroom`, cluster `rnk8d`) came up with the Zero Touch `runner` sidecar in `CrashLoopBackOff`: `restartCount 6`, `lastState.terminated exitCode 0 reason Completed`, ~89 s per cycle, pod never Ready, so the showroom Route returned 503 while `nginx`, `content` and `terminal` were fine. Cause: `zt-runner`'s `/health` returns **503** when `$RUNTIME_DIR` is missing; with `showroom-single-pod` 2.1.x mounting only the cloned repo, that path is `/showroom/repo/runtime-automation`. Three failed liveness probes (~70 s) → SIGTERM → gunicorn exits **0** → `restartPolicy: Always` restarts it. `rhpds/lightwell-workshop` has no such directory. `rhpds/agnosticv` never enabled this: `rh1-2027/lb1815-lightwell-tenant` sets no `ocp4_workload_showroom_runtime_automation_enable` on any branch (`git log --all -S` is empty), the showroom role defaults it to `false` at every tag from v1.6.6 to HEAD, and chart `showroom-single-pod` defaults `runtime_automation.setup` to `"false"`. What did change quietly is the role's **floating `2.1.*` chart range**: chart 2.1.4 added the runner sidecar and hardcoded `ZT_UI_ENABLED: "true"` on the content container, and 2.1.6 moved the image to `zt-runner:v2.5.0` with `imagePullPolicy: Always` — the exact shape of the failing pod. So the sidecar was switched on out of band for that seat, and nothing in the repo could keep it healthy. |
 | **Decision** | Ship a tracked, documented `runtime-automation/` in this repo (README only, no playbooks), so the health contract is met and the pod becomes Ready regardless of how ZT got enabled. Do **not** open an agnosticv change for this, and do **not** invent solve/validate playbooks: the lab is tab-driven and does not grade itself. If a future seat should genuinely drop the sidecar, that lever is agnosticv-side (`ocp4_workload_showroom_runtime_automation_enable: false`, or a helm override on `runtime_automation.setup`), not this repo. |
 | **Consequences** | Any ZT-enabled seat self-heals on its next pod (`git-cloner` clones `main`; existing pods need `rollout restart deploy/showroom`). `/config` returns `{}`, so the Zero Touch panel renders empty rather than erroring. Verified against the real `quay.io/rhpds/zt-runner:v2.5.0` with only `/showroom/repo` mounted: no directory → `503 {"runtime_dir":"missing: /showroom/repo/runtime-automation"}`, directory present → `200 {"runtime_dir":"ok","status":"healthy"}`. The enablement itself remains untracked: a new seat provisioned with runtime automation on will run the sidecar, and that is only visible from the pod spec or the applied values. Chart 2.1.4+ also shows the ZT UI bundle for every lab regardless of the runner, which is why this looked like "zero touch was introduced". |
+
+## ADR-063 — Module 2 Nexus publish must not break Start at Verifier
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-28 |
+| **Title** | Isolate Path 1 publish from Start; treat Verifier assert as Impact fall-through |
+| **Context** | User report: Start fails at MR Verifier randomly when Module 2 publishes a remediation. Static analysis (no cluster yet): Module 2 `publish-remediation.sh` uploads `*.rhlw-*` to the same hosted Nexus repo that fires EDA → **SDLC Start Orchestrator** (rulebook `sdlc-remediation.yml`). Classify skips Renovate-owned `report-generator-app`, but TPA SBOM matching can still put jackson into AO apps (ADR-016). Impact then dies on `dependency … not found in pom.xml`; `detect-impact-outcome` only short-circuits on a narrow agent-text regex / pom-already-current check — “dependency not found” is **not** in that set — so the playbook polls GitLab 90× and aborts **before** Impact `set_stats`. AO `impact` has `continue_on_failure: true`, so the canvas still edges to Verifier with empty/`0` `merge_request_iid`; Verifier’s first assert fails. Lightweight Verifier (`verifier_use_opencode: false`) only checks GitLab `state == opened` and is not itself flaky. Lab tests never assert “Start quiet after Module 2 publish,” so we miss it. |
+| **Decision** | (Cluster-confirmed on `4brjh` 2026-10-28; primary fix still open.) **(A)** Stop Module 2 publish from starting AO — e.g. Nexus webhook filter / separate hosted repo without Start webhook / EDA condition that ignores Renovate-target GAVs. **(B)** Harden Impact: treat “dependency not found in pom” / “no merge request will be created” (and poll timeout with no MR) as `already_current` / `skipped`, always `set_stats` before exit, so Verifier is never entered without an iid. **(C)** Harden Start canvas: gate Verifier on `merge_request_iid > 0` (or Impact outcome ∈ `{mr_opened}`), else SNOW-skip. Prefer **A+B**; C alone still burns OpenCode on a false blast radius. Do **not** turn on `verifier_use_opencode` until the ephemeral skill is fixed (ADR-028). Add a Module 2 assertion in `test-lab-flow.sh` that Start did not run (or ended with renovate-only skip). |
+| **Consequences** | Validated: Module 2 jackson publish always starts Start. On current seeds wire **has** jackson in pom, so the happy path reaches Verifier and passes. The reported Verifier failure is reproduced when Impact targets an AO app without the GAV: agent wording (“will be created”) misses the `already_current` regex (“was created”) → poll abort before `set_stats` → Verifier assert on iid 0. Until A+B land, triage Impact JT stdout first. Logs: `/tmp/lw-jackson-4brjh/`. |
+| **Relates** | [ADR-016](#adr-016--trigger-artifacts-must-be-declared-dependencies-of-a-seeded-app), [ADR-027](#adr-027--impact-already_current-skips-mr-poll), [ADR-028](#adr-028--multi-app-ao-path-and-oct-16-hardening), [ADR-061](#adr-061--non-ao-promote-must-not-start-ao-deploy) |
+
+## ADR-064 — OpenCode `question` hang and unscoped MR poll
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-10-28 (implemented 2026-11-09 on `f6rc7` / `cluster-vj6w6`) |
+| **Title** | Headless Impact must not use `question`; MR poll must match the intended bump |
+| **Context** | On `4brjh`, three Module 2 jackson publishes that also hit AO `wire-transfer-svc` (`rhlw-00002` overlapping `00003`, then `00004`). Single opencode Deployment (512Mi/2Gi) stayed healthy (~374Mi, 0 restarts) — **not** an OOM/sizing failure. Run1’s Impact session (`ses_e7e007f20ffe…`) invoked tool `question` asking “Confirm MR … proceed?” and remained `busy` with no operator; Impact’s idle wait exhausted 90 retries (`failed_when: false`), summary was “(no assistant text)”, then `poll-gitlab-mr` selected **any** open `update-artifact-*` MR and bound Run1 to Run2’s MR !2 (`rhlw-00003`). Verifier still passed. Run2/Run3 exited the agent loop and opened their own MRs. Reproduced on `f6rc7` (2026-11-09): Impact job 15 wrote only a risk paragraph (no MR); job 21 spawned a `general` subagent that blocked on `question` while AAP abandoned the session and poll-timed-out. AO then crashed on `impact_already` because a **failed** AAP job publishes **empty** artifacts (`iteration_outcome` missing). |
+| **Decision** | (1) Deny OpenCode `question` **and** `task` for headless agents (`impact-analyzer`, `mr-verifier`) in image `/app/opencode.json`; skill + agent prompt forbid confirm prompts / subagents and require `bump-maven-mr` after the risk paragraph. (2) Scope MR poll to `update-artifact-<sanitized-new_version>`. (3) Two-phase idle wait (must observe busy, then idle); on never-idle / no MR set `iteration_outcome=failed` via `set_stats` and **leave the AAP job successful** so AO receives artifacts — AO discards stats from failed jobs. (4) Start canvas: `impact_already` → `impact_mr_opened` (`iteration_outcome == mr_opened`) → Verifier; else `snow_iter_impact_fail`. (5) Prefer serialising Start Impact per tenant later. |
+| **Consequences** | Overlapping publishes no longer bind the wrong MR via unscoped poll. A stuck/ask agent soft-fails into SNOW instead of a 15‑minute poll + condition crash. Requires image rebuild (`lw-sdlc-opencode`), AAP project SCM refresh, and AO Start republish (`ao-bootstrap`) on live tenants. |
+| **Relates** | [ADR-004](#adr-004--unattended-opencode-tool-permission), [ADR-027](#adr-027--impact-already_current-skips-mr-poll), [ADR-063](#adr-063--module-2-nexus-publish-must-not-break-start-at-verifier) |
 
 ---
 
@@ -743,6 +753,7 @@ Copy and fill for each new decision:
 | Showroom terminal has no identity until `oc login` | ADR-057 |
 | Tenant users see the agent's namespaces, read-only | ADR-058 |
 | UI gate de-chunks responses ("b44" on the session page) | ADR-059 |
-| Agent-sandbox alternative Path 2 (no AO/EDA/AAP in story) | ADR-060 |
 | Non-AO / Renovate promote → no AO Deploy | ADR-061 |
 | ZT `runner` crashloop: content repo must ship `runtime-automation/` | ADR-062 |
+| Module 2 publish → Start / Verifier crosstalk | ADR-063 |
+| OpenCode question hang + unscoped MR poll | ADR-064 |

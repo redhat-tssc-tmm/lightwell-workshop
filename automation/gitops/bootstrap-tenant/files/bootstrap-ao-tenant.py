@@ -721,6 +721,29 @@ def start_workflow_definition(
         "guid": "${trigger.guid}",
         "iteration_outcome": "already_current",
     }
+    # ADR-064: Impact soft-fails (job succeeds, iteration_outcome=failed) when
+    # the agent hangs on question/task or never opens an MR. Route to SNOW
+    # without entering Verifier — Verifier vars would be empty / iid 0.
+    iter_comment_impact_fail = {
+        "snow_url": trigger_common["snow_url"],
+        "snow_svc_url": trigger_common["snow_svc_url"],
+        "snow_incident": "${loop.item.child_incident}",
+        "child_incident": "${loop.item.child_incident}",
+        "parent_incident": parent_inc,
+        "gitlab_url": gitlab_url_var,
+        "gitlab_path": "${impact.artifacts.gitlab_path}",
+        "approval": "${impact.artifacts.approval}",
+        "merge_request_iid": "${impact.artifacts.merge_request_iid}",
+        "merge_request_url": "${impact.artifacts.merge_request_url}",
+        "opencode_session_id": "${impact.artifacts.opencode_session_id}",
+        "opencode_session_ui_url": "${impact.artifacts.opencode_session_ui_url}",
+        "opencode_session_title": "${impact.artifacts.opencode_session_title}",
+        "opencode_session_summary": "${impact.artifacts.opencode_session_summary}",
+        "opencode_ui_url": trigger_common["opencode_ui_url"],
+        "verifier_status": "n/a",
+        "guid": "${trigger.guid}",
+        "iteration_outcome": "failed",
+    }
     merge_vars = {
         "gitlab_url": gitlab_url_var,
         "gitlab_token": trigger_common["gitlab_token"],
@@ -797,6 +820,18 @@ def start_workflow_definition(
                 "parameters": {
                     "condition": (
                         '${impact.artifacts.iteration_outcome} == "already_current"'
+                    ),
+                },
+            },
+            {
+                # ADR-064 / ADR-063: only enter Verifier when Impact opened an MR.
+                # failed / skipped / missing-MR soft-fails go to SNOW iteration.
+                "id": "impact_mr_opened",
+                "name": "MR opened?",
+                "type": "condition",
+                "parameters": {
+                    "condition": (
+                        '${impact.artifacts.iteration_outcome} == "mr_opened"'
                     ),
                 },
             },
@@ -882,6 +917,16 @@ def start_workflow_definition(
                 continue_on_failure=True,
             ),
             _aap_jt_node(
+                "snow_iter_impact_fail",
+                "SNOW iteration (impact fail)",
+                JT_SNOW_ITER,
+                aap_org,
+                aap_credential_id,
+                iter_comment_impact_fail,
+                integration_id=aap_integration_id,
+                continue_on_failure=True,
+            ),
+            _aap_jt_node(
                 "snow_parent_awaiting",
                 "SNOW parent — Start finished",
                 JT_SNOW_PARENT_STATUS,
@@ -902,7 +947,21 @@ def start_workflow_definition(
                 "to": "snow_iter_already",
                 "from_port": "true",
             },
-            {"from": "impact_already", "to": "verifier", "from_port": "false"},
+            {
+                "from": "impact_already",
+                "to": "impact_mr_opened",
+                "from_port": "false",
+            },
+            {
+                "from": "impact_mr_opened",
+                "to": "verifier",
+                "from_port": "true",
+            },
+            {
+                "from": "impact_mr_opened",
+                "to": "snow_iter_impact_fail",
+                "from_port": "false",
+            },
             {"from": "verifier", "to": "verifier_ok"},
             {
                 "from": "verifier_ok",

@@ -8,20 +8,31 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-11-04 (ADR-062 ZT runner needs `runtime-automation/` in the content repo)
+Last updated: 2026-11-10 (Deploy-before-Merged race deferred)
 
 ## Where the pieces live
 
 | Piece | Repo |
 |---|---|
-| Helm charts, Showroom content, dashboard | this repo (`rhpds/lightwell-workshop`) — **default demo stays on `main`**; agent-sandbox work on branch **`agent-sandbox`** |
+| Helm charts, Showroom content, dashboard | this repo (`rhpds/lightwell-workshop`), pushes straight to `main` |
 | Catalog item `lb1815-lightwell-tenant` | `rhpds/agnosticv`, `rh1-2027/` — via PR |
-| OpenCode / orchestrator / lane image + skills | `rhpds/lw-sdlc-opencode` — branch **`agent-sandbox`** for this drive |
+| OpenCode agent prompts, EDA rulebooks, AAP playbooks | `rhpds/lw-sdlc-opencode` — via PR |
 | Acme sample apps (3) | `redhat-ads-tech/{wire-transfer-svc,benefits-mgmt-app,report-generator-app}` |
 | Acme deployment manifests | `redhat-ads-tech/acme-deployment` — Helm chart for ArgoCD app-of-apps |
-| Path 2 operator helper + docs | this repo — [`ao-trigger-helper/`](ao-trigger-helper/) (rewritten for agent-sandbox on that branch) |
+| AO Path 2 operator helper + docs | this repo — [`ao-trigger-helper/`](ao-trigger-helper/) (scripts + [`docs/`](ao-trigger-helper/docs/)) |
 
 ## Recently done
+
+- **ADR-064 implemented (9 Nov, `f6rc7` / `cluster-vj6w6`).** Impact
+  was hanging on OpenCode `question` / stopping after a risk paragraph,
+  then AO crashed on empty `iteration_outcome` because failed AAP jobs
+  drop `set_stats`. Fixes: deny `question`+`task` in
+  `lw-sdlc-opencode` `opencode.json` + skill/agent wording; Impact
+  playbook always exports `iteration_outcome` (soft-fail, job stays
+  successful); scoped MR poll; Start canvas gates Verifier on
+  `mr_opened` else `snow_iter_impact_fail`. **Still needs:** push image
+  SCM, rebuild `opencode-image`, refresh AAP project, republish AO
+  Start on tenants. → [ADR-064](ADR.md#adr-064--opencode-question-hang-and-unscoped-mr-poll)
 
 - **Showroom ZT `runner` sidecar CrashLoopBackOff, fixed in the content repo
   (4 Nov).** Seat `user-9wjsj-showroom` never went Ready — `runner` cycling
@@ -69,19 +80,6 @@ Last updated: 2026-11-04 (ADR-062 ZT runner needs `runtime-automation/` in the c
   nobody has swapped the ConfigMap on a tenant yet — that needs cluster-admin.
   → [ADR-059](ADR.md#adr-059--the-ui-gate-must-de-chunk-not-just-forward)
 
-- **Agent-sandbox alternative remediation drive (24 Oct, branch `agent-sandbox`).**
-  OpenSpec change `openspec/changes/agent-sandbox-orchestrator/` — Path 2 without
-  AO, EDA, or AAP JTs; AAP may stay in cluster provisioning. Operator/platform
-  docs updated (`ao-trigger-helper`, `docs/AGENT-SANDBOX-REMEDIATION.md`, ADR).
-  **IMPORTANT: do not edit Showroom (`content/`) on this branch** — student lab
-  content is a separate cycle after we deliver the demo platform.
-  **Implementation progress:** Group 1 (cluster agent-sandbox chart v1.0.8 +
-  lightwell-observability Tempo/OTel/COO/Perses skeleton) and Group 2 (tenant
-  `sdlc.runtime` flag + orchestrator Sandbox/Template/WarmPool templates +
-  `scripts/verify-runtime-matrix.sh`) are in-repo. Next: Group 3 orchestrator
-  service in `rhpds/lw-sdlc-opencode`. Lab-cluster verifies (CRD Available,
-  Claim Ready, Observe → Traces) still pending a kube context.
-  **Do not merge to `main` until e2e green.** → [ADR-060](ADR.md#adr-060--agent-sandbox-alternative-remediation-drive)
 - **The Showroom terminal has no identity until the attendee logs in
   (22 Oct).** `publish-remediation.sh` died silently after
   `--- Discovering Nexus ---` on a tenant that had skipped Module 2's
@@ -470,6 +468,40 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   → [ADR-017](ADR.md#adr-017--keyless-signing-via-tas--tekton-chains)
 
 ## Next up
+
+00ai. **Deploy fires before Merged (deferred 10 Nov, `f6rc7`).** Not a
+   Merged bug — Deploy is decoupled (bridge POSTs on any Argo
+   Synced/Healthy + new revision). Lab: `reset-demo-repos` pushed
+   policy.json → PaC promoted `0531a527…` → Deploy completed during
+   Start/Merge, before Merged polled merge `6be75083…`; a second
+   Deploy then fired for the real promote. Preferred fix later:
+   Merged/Poll arms an allowlist (path + merge SHA); bridge only
+   POSTs Deploy when promote title SHA matches. Alt: fold Deploy
+   into Merged after Poll. Do **not** paper over with sleeps.
+   → ADR TBD when we pick the approach.
+
+00ah. **~~OpenCode concurrency / question hang~~ → ADR-064 implemented
+   (9 Nov).** Code in `lw-sdlc-opencode` + `bootstrap-ao-tenant.py`;
+   rollout (image rebuild / AAP SCM / AO republish) still open per
+   Recently done.
+
+00ag. **Module 2 publish → Start/Verifier — cluster-validated on `4brjh`
+   (28 Oct, `cluster-k6zxt`).** Natural jackson publish
+   (`2.13.5.rhlw-00001`) → Start #24 → Prepare #26 → Impact #28 → Verifier
+   #30 **all successful**. Crosstalk confirmed: Module 2 Nexus CREATED
+   starts AO. Prepare `ao_apps=[wire]`, `renovate_skips=[report]`; wire
+   now **declares** jackson-databind `2.9.8` in pom (ADR-016’s “not in
+   pom” no longer true for this seed), so Impact opened MR !1 and
+   lightweight Verifier passed. **BP1 fall-through also proven** by
+   forcing Impact against `benefits-mgmt-app` (no jackson): agent said
+   “not found in pom” / “no merge request **will be** created”, but
+   `detect-impact-outcome` only matches “**was** created” →
+   `pending_mr` → poll fail → no `set_stats` (Impact #36 failed);
+   Verifier #38 with `merge_request_iid=0` asserts exactly as Start
+   would after Impact `continue_on_failure`. Logs under
+   `/tmp/lw-jackson-4brjh/`. Fix options still open (ADR-063); also
+   widen the already_current regex / treat “not found in pom”.
+   → [ADR-063](ADR.md#adr-063--module-2-nexus-publish-must-not-break-start-at-verifier)
 
 00af. **~~AO → AAP job log link 403 for tenant user~~ → ADR-053.**
    `create-aap-tenant` only granted gateway **Organization Member**. That
