@@ -324,10 +324,10 @@ def list_capabilities(base: str, user: str, password: str) -> list:
     return []
 
 
-def webhook_exists(caps: list, repository: str, eda_url: str) -> bool:
+def webhook_exists(caps: list, repository: str, eda_urls: list[str]) -> bool:
     for cap in caps:
         props = cap.get("properties") or {}
-        if props.get("repository") == repository and props.get("url") == eda_url:
+        if props.get("repository") == repository and props.get("url") in eda_urls:
             return True
     return False
 
@@ -340,7 +340,7 @@ def create_webhook_extdirect(
     eda_url: str,
     notes: str,
     tid: int,
-) -> None:
+) -> bool:
     data = [
         {
             "typeId": "webhook.repository",
@@ -358,9 +358,10 @@ def create_webhook_extdirect(
     # ExtDirect answers 200 even when the RPC itself failed, so check result.success.
     ok = code == 200 and isinstance(resp, dict) and (resp.get("result") or {}).get("success")
     if ok:
-        print(f"Webhook created for {repository}")
+        print(f"Webhook created for {repository} -> {eda_url}")
     else:
         print(f"ERROR creating webhook {repository}: HTTP {code} {resp}", file=sys.stderr)
+    return bool(ok)
 
 
 def verify_webhooks(caps: list, repos: list[str]) -> bool:
@@ -393,6 +394,7 @@ def main() -> None:
     lw_user = env("LIGHTWELL_NETWORK_USERNAME", "")
     lw_pass = env("LIGHTWELL_NETWORK_PASSWORD", "")
     eda_url = env("EDA_WEBHOOK_URL", "")
+    eda_route_url = env("EDA_WEBHOOK_ROUTE_URL", "")
     webhook_repos = env(
         "NEXUS_WEBHOOK_REPOSITORIES",
         "redhat-packages-validated,redhat-packages-remediated",
@@ -465,21 +467,31 @@ def main() -> None:
     if not repo_list:
         print("SKIP webhooks: no reconciled repositories to attach them to.")
         sys.exit(0)
+    # Some Nexus deployments refuse webhook targets that resolve to a private
+    # address ("Host resolves to private/local IP address(es)"), which is what
+    # the in-cluster Service URL is; seen on AWS clusters. The activation's
+    # Route resolves to the ingress load balancer, so fall back to it.
+    eda_urls = [u for u in (eda_url, eda_route_url) if u]
     tid = 1
     for repo in repo_list:
-        if webhook_exists(caps, repo, eda_url):
-            print(f"Skip webhook (exists): {repo} -> {eda_url}")
+        if webhook_exists(caps, repo, eda_urls):
+            print(f"Skip webhook (exists): {repo}")
             continue
-        create_webhook_extdirect(
-            nexus_url,
-            nexus_user,
-            nexus_pass,
-            repo,
-            eda_url,
-            f"SDLC EDA webhook — GitOps ({repo})",
-            tid,
-        )
-        tid += 1
+        for url in eda_urls:
+            created = create_webhook_extdirect(
+                nexus_url,
+                nexus_user,
+                nexus_pass,
+                repo,
+                url,
+                f"SDLC EDA webhook — GitOps ({repo})",
+                tid,
+            )
+            tid += 1
+            if created:
+                break
+            if url != eda_urls[-1]:
+                print(f"Retrying webhook for {repo} with the EDA Route URL")
 
     caps = list_capabilities(nexus_url, nexus_user, nexus_pass)
     if not verify_webhooks(caps, repo_list):
