@@ -1,8 +1,8 @@
 apiVersion: v2
 name: agent-sandbox
 description: >-
-  kubernetes-sigs/agent-sandbox controller + extensions (Sandbox, Template,
-  WarmPool, Claim), pinned release manifest vendored under files/.
+  Red Hat build of Agent Sandbox (operator). Owns Sandbox, SandboxTemplate,
+  SandboxWarmPool, and SandboxClaim.
 type: application
-version: 0.1.0
-appVersion: "1.0.8"
+version: 0.2.0
+appVersion: "0.9.0"

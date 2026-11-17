@@ -1,11 +1,15 @@
-# Pin must match files/sandbox-with-extensions.yaml (upstream release asset).
-# Source: https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.8/sandbox-with-extensions.yaml
+# Red Hat build of Agent Sandbox. Technology Preview, AllNamespaces only,
+# so the Subscription has to live next to the global OperatorGroup.
 enabled: true
-version: v1.0.8
-namespace: agent-sandbox-system
+name: agent-sandbox-operator
+channel: preview-0.9
+startingCSV: agent-sandbox-operator.v0.9.0
+source: redhat-operators
+sourceNamespace: openshift-marketplace
+namespace: openshift-operators
 
 metrics:
-  # ServiceMonitor for the controller metrics port (8080) already exposed by upstream.
+  # ServiceMonitor for the controller metrics port (8080) the operator exposes.
   serviceMonitor:
     enabled: true
     interval: 30s

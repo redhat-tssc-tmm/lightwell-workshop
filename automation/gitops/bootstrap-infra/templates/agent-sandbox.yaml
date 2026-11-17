@@ -14,7 +14,11 @@ spec:
     helm:
       valuesObject:
         enabled: {{ .Values.agentSandbox.enabled }}
-        version: {{ .Values.agentSandbox.version }}
+        name: {{ .Values.agentSandbox.name }}
+        channel: {{ .Values.agentSandbox.channel }}
+        startingCSV: {{ .Values.agentSandbox.startingCSV }}
+        source: {{ .Values.agentSandbox.source }}
+        sourceNamespace: {{ .Values.agentSandbox.sourceNamespace }}
         namespace: {{ .Values.agentSandbox.namespace }}
         metrics:
           serviceMonitor:

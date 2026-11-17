@@ -1,4 +1,0 @@
-{{- if .Values.enabled }}
-{{/* Vendored upstream install; do not edit by hand — bump values.version and refresh files/. */}}
-{{ .Files.Get "files/sandbox-with-extensions.yaml" }}
-{{- end }}

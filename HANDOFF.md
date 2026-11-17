@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-11-17 (Sandbox traces export to cluster Tempo)
+Last updated: 2026-11-17 (Red Hat build of Agent Sandbox)
 
 ## Where the pieces live
 
@@ -34,17 +34,20 @@ Last updated: 2026-11-17 (Sandbox traces export to cluster Tempo)
   → [ADR-066](ADR.md#adr-066--trace-sandbox-agents-in-a-cluster-tempo-keep-ao)
 
 - **OpenCode server is `Sandbox/opencode` (17 Nov).** `bootstrap-infra`
-  installs agent-sandbox v1.0.8. The tenant chart no longer renders
+  subscribes to the Red Hat build of Agent Sandbox (`preview-0.9`,
+  CSV `v0.9.0`) in `openshift-operators`. The tenant chart no longer renders
   `Deployment/opencode`; Service `opencode:4096` and the UI gate stay.
   `sync-gitlab-pat` deletes the Sandbox pod instead of rolling a
-  Deployment. Lab sync on dev cluster `fvllf` (tenant `qkjst`): controller
-  `v1.0.8` Available, `Sandbox/opencode` Ready in `sdlc-qkjst`, Service
+  Deployment. The v0.9.0 CRD has no `failedPodPolicy`; `operatingMode: Running`
+  still recreates a deleted pod. Lab sync on dev cluster `fvllf` (tenant `qkjst`):
+  operator CSV in `openshift-operators`, `Sandbox/opencode` Ready in `sdlc-qkjst`, Service
   `opencode:4096` selects that pod, Deployment pruned, pod delete recreated
   Ready. Automated sync is off on `lb1815-lightwell`, `agent-sandbox`, and
   `lightwell-tenant-qkjst` so `feat/aws-noobaa-support` does not revert the
   local charts. Orchestrator/lane Claims are still
   [`openspec/changes/agent-sandbox-orchestrator/`](openspec/changes/agent-sandbox-orchestrator/).
-  → [ADR-065](ADR.md#adr-065--opencode-runs-as-an-agent-sandbox-sandbox)
+  → [ADR-065](ADR.md#adr-065--opencode-runs-as-an-agent-sandbox-sandbox),
+  [ADR-067](ADR.md#adr-067--use-the-red-hat-build-of-agent-sandbox)
 
 - **ADR-064 implemented (9 Nov, `f6rc7` / `cluster-vj6w6`).** Impact
   was hanging on OpenCode `question` / stopping after a risk paragraph,

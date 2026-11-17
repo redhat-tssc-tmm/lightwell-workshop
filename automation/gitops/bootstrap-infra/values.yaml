@@ -102,12 +102,16 @@ opencodeImage:
 
 jobAnsibleImage: quay.io/agnosticd/ee-multicloud:chained-2026-08-05
 
-# kubernetes-sigs/agent-sandbox controller. namespace must stay
-# agent-sandbox-system: the vendored manifest hardcodes it.
+# Red Hat build of Agent Sandbox. AllNamespaces CSV, so the Subscription
+# lives in openshift-operators. The v0.9.0 CRD has no failedPodPolicy.
 agentSandbox:
   enabled: true
-  version: v1.0.8
-  namespace: agent-sandbox-system
+  name: agent-sandbox-operator
+  channel: preview-0.9
+  startingCSV: agent-sandbox-operator.v0.9.0
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  namespace: openshift-operators
   metrics:
     serviceMonitor:
       enabled: true

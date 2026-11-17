@@ -694,7 +694,7 @@ Copy and fill for each new decision:
 | **Title** | The OpenCode server is `Sandbox/opencode`, not a Deployment |
 | **Context** | Each tenant ran OpenCode as `Deployment/opencode` in `sdlc-<guid>`. AO, EDA, and AAP call Service `opencode:4096`. The agent-sandbox controller was only an untracked chart, and a dual-runtime sketch (`sdlc.runtime`) called helpers that were never committed, so the tenant chart could not render. |
 | **Decision** | `bootstrap-infra` installs kubernetes-sigs/agent-sandbox v1.0.8 in `agent-sandbox-system`. When SDLC is enabled, `bootstrap-tenant` creates `Sandbox/opencode` (`agents.x-k8s.io/v1beta1`) with the same `opencode serve` command, env, service account, and probes. Service `opencode:4096` and Route `opencode-ui` (via `opencode-ui-gate`) stay the caller contract. `sync-gitlab-pat` deletes the `app=opencode` pod so the controller recreates it with the new GitLab token. There is no `sdlc.runtime` flag and no `Deployment/opencode`. Replacing AO, EDA, and AAP remains `openspec/changes/agent-sandbox-orchestrator/`. |
-| **Consequences** | Cluster sync must install the controller before a tenant Sandbox will admit. A pod recreate clears sessions on the emptyDir, as a Deployment rollout already did. Existing tenants must drop `deploy/opencode` if Argo prune leaves it, or the Service selects two pods. |
+| **Consequences** | Cluster sync must install the controller before a tenant Sandbox will admit. A pod recreate clears sessions on the emptyDir, as a Deployment rollout already did. Existing tenants must drop `deploy/opencode` if Argo prune leaves it, or the Service selects two pods. The upstream v1.0.8 manifest install is replaced by [ADR-067](#adr-067--use-the-red-hat-build-of-agent-sandbox). |
 | **Relates** | [ADR-005](#adr-005--per-tenant-sandbox-namespaces), [ADR-013](#adr-013--shared-opencode-image-build-to-openshift-integrated-registry), [ADR-029](#adr-029--opencode-ui-gate-for-web-session-visibility), [ADR-058](#adr-058--tenant-users-can-see-the-agents-namespaces-read-only) |
 
 ---
@@ -709,6 +709,19 @@ Copy and fill for each new decision:
 | **Decision** | `bootstrap-infra` installs one `lightwell-observability` stack: Tempo Operator, OpenTelemetry Operator, and Cluster Observability Operator in `openshift-operators`; `TempoMonolithic` (pv, 2Gi), the OTLP collector, the Distributed Tracing and Perses console plugins, and Perses dashboard `lightwell-remediation` in namespace `lightwell-observability`. Each tenant Sandbox sets `OTEL_EXPORTER_OTLP_ENDPOINT` to `http://lightwell-collector.lightwell-observability.svc:4318` and `OTEL_RESOURCE_ATTRIBUTES` including `lightwell.guid`. The tenant chart does not install Tempo, a collector, or a console plugin. AO is unchanged. |
 | **Consequences** | Operators compare remediations in **Observe → Traces** by `lightwell.guid` and `session.id`. The AAP Impact job’s OpenCode deep link is the join to the `rhlw` suffix and the MR. OpenCode 1.19.6 does not start a new trace per prompt, so one Sandbox process is one trace context until the pod is replaced. Lab user `user-<guid>` does not get that console. A Tempo PVC keeps traces across a pod restart. The console plugin skips a Tempo instance with no tenant, so this TempoMonolithic uses OpenShift multitenancy with tenant `lightwell`. The Tempo process only accepts OTLP on localhost; the collector writes to `tempo-lightwell-gateway:4317` with TLS, `X-Scope-OrgID: lightwell`, and the collector ServiceAccount token. That token is allowed by a ClusterRole that can `create` `tempo.grafana.com` resource `lightwell` named `traces`. |
 | **Relates** | [ADR-029](#adr-029--opencode-ui-gate-for-web-session-visibility), [ADR-043](#adr-043--opencode-session-deep-links--summary-in-aapsnow), [ADR-065](#adr-065--opencode-runs-as-an-agent-sandbox-sandbox) |
+
+---
+
+## ADR-067 — Use the Red Hat build of Agent Sandbox
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-11-17 |
+| **Title** | The cluster controller is the Red Hat operator, not the upstream manifest |
+| **Context** | ADR-065 vendored kubernetes-sigs/agent-sandbox v1.0.8. The same cluster's `redhat-operators` catalog offers Red Hat build of Agent Sandbox `v0.9.0` (`preview-0.9`). It is a downstream of that project and serves `Sandbox` `agents.x-k8s.io/v1beta1` plus the three extension CRDs. The CSV supports only `AllNamespaces`. Its Sandbox schema has `operatingMode` and `shutdownPolicy`, and does not declare `failedPodPolicy` (upstream added that field in v1.0.8). |
+| **Decision** | `bootstrap-infra` subscribes to `agent-sandbox-operator` in `openshift-operators` at `startingCSV: agent-sandbox-operator.v0.9.0`. The tenant Sandbox stays `operatingMode: Running` and does not set `failedPodPolicy`. Callers still use Service `opencode:4096`. The sandbox router and Kata `runtimeClassName` are not part of this path. |
+| **Consequences** | Technology Preview, not a production SLA. A missing pod is recreated because the mode is `Running`; a pod already in phase `Failed` is not replaced by `failedPodPolicy: Recreate`. Do not install the upstream manifest beside this operator: both own the same CRDs. Deleting those CRDs deletes `Sandbox/opencode`. |
+| **Relates** | [ADR-065](#adr-065--opencode-runs-as-an-agent-sandbox-sandbox), [ADR-066](#adr-066--trace-sandbox-agents-in-a-cluster-tempo-keep-ao) |
 
 ---
 
@@ -782,4 +795,5 @@ Copy and fill for each new decision:
 | Module 2 publish → Start / Verifier crosstalk | ADR-063 |
 | OpenCode question hang + unscoped MR poll | ADR-064 |
 | OpenCode server is an agent-sandbox Sandbox | ADR-065 |
+| Red Hat build of Agent Sandbox operator, not the upstream manifest | ADR-067 |
 | Sandbox agent traces in cluster Tempo; tenant only exports | ADR-066 |

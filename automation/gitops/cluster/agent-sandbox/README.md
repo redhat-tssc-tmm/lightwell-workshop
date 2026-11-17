@@ -1,23 +1,19 @@
 # agent-sandbox (cluster)
 
-Installs [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)
-core + extensions from a **pinned** release manifest.
+Installs the Red Hat build of Agent Sandbox from OperatorHub. The CSV is
+AllNamespaces, so the Subscription is created in `openshift-operators`, next
+to the global OperatorGroup. The operator runs the controller and the sandbox
+router there and owns the `agents.x-k8s.io` / `extensions.agents.x-k8s.io`
+CRDs.
+
+This is Technology Preview (`preview-0.9`, CSV `v0.9.0`). The v0.9.0 Sandbox
+CRD has `operatingMode` and `shutdownPolicy`. It does not have
+`failedPodPolicy`.
 
 | Value | Purpose |
 |-------|---------|
-| `version` | Upstream tag (must match vendored file) |
-| `namespace` | Controller namespace. `values.namespace` must stay `agent-sandbox-system` because the vendored manifest hardcodes it. |
+| `channel` / `startingCSV` | Catalog channel and the CSV this chart was tested with |
+| `namespace` | Subscription namespace. Must be `openshift-operators` on a cluster whose only global OperatorGroup is there |
 | `metrics.serviceMonitor.enabled` | Scrape controller `:8080/metrics` |
-
-## Pin / upgrade
-
-```bash
-VERSION=v1.0.8
-curl -fsSL \
-  "https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${VERSION}/sandbox-with-extensions.yaml" \
-  -o files/sandbox-with-extensions.yaml
-# Update Chart.yaml appVersion + values.yaml version to match.
-helm template test . >/dev/null
-```
 
 Wired from `bootstrap-infra` as child Application `agent-sandbox` (sync-wave `2`).

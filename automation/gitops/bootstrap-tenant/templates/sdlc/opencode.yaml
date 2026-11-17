@@ -22,8 +22,9 @@ metadata:
     argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
+  # Running keeps a backing pod. The Red Hat operator v0.9.0 CRD has no
+  # failedPodPolicy; a deleted pod is still recreated while this mode is set.
   operatingMode: Running
-  failedPodPolicy: Recreate
   podTemplate:
     metadata:
       labels:
