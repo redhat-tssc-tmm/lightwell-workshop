@@ -686,6 +686,17 @@ Copy and fill for each new decision:
 | **Consequences** | Overlapping publishes no longer bind the wrong MR via unscoped poll. A stuck/ask agent soft-fails into SNOW instead of a 15‑minute poll + condition crash. Chart pin is `sha-7971cad` (`rhpds/lw-sdlc-opencode` `7971cad`, 2026-11-17). Live tenants still need the ImageStream rebuild, AAP project SCM refresh, and AO Start republish (`ao-bootstrap`). |
 | **Relates** | [ADR-004](#adr-004--unattended-opencode-tool-permission), [ADR-027](#adr-027--impact-already_current-skips-mr-poll), [ADR-063](#adr-063--module-2-nexus-publish-must-not-break-start-at-verifier) |
 
+## ADR-065 — OpenCode runs as an agent-sandbox Sandbox
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-11-17 |
+| **Title** | The OpenCode server is `Sandbox/opencode`, not a Deployment |
+| **Context** | Each tenant ran OpenCode as `Deployment/opencode` in `sdlc-<guid>`. AO, EDA, and AAP call Service `opencode:4096`. The agent-sandbox controller was only an untracked chart, and a dual-runtime sketch (`sdlc.runtime`) called helpers that were never committed, so the tenant chart could not render. |
+| **Decision** | `bootstrap-infra` installs kubernetes-sigs/agent-sandbox v1.0.8 in `agent-sandbox-system`. When SDLC is enabled, `bootstrap-tenant` creates `Sandbox/opencode` (`agents.x-k8s.io/v1beta1`) with the same `opencode serve` command, env, service account, and probes. Service `opencode:4096` and Route `opencode-ui` (via `opencode-ui-gate`) stay the caller contract. `sync-gitlab-pat` deletes the `app=opencode` pod so the controller recreates it with the new GitLab token. There is no `sdlc.runtime` flag and no `Deployment/opencode`. Replacing AO, EDA, and AAP remains `openspec/changes/agent-sandbox-orchestrator/`. |
+| **Consequences** | Cluster sync must install the controller before a tenant Sandbox will admit. A pod recreate clears sessions on the emptyDir, as a Deployment rollout already did. Existing tenants must drop `deploy/opencode` if Argo prune leaves it, or the Service selects two pods. |
+| **Relates** | [ADR-005](#adr-005--per-tenant-sandbox-namespaces), [ADR-013](#adr-013--shared-opencode-image-build-to-openshift-integrated-registry), [ADR-029](#adr-029--opencode-ui-gate-for-web-session-visibility), [ADR-058](#adr-058--tenant-users-can-see-the-agents-namespaces-read-only) |
+
 ---
 
 ## Mapping to HANDOFF.md
@@ -757,3 +768,4 @@ Copy and fill for each new decision:
 | ZT `runner` crashloop: content repo must ship `runtime-automation/` | ADR-062 |
 | Module 2 publish → Start / Verifier crosstalk | ADR-063 |
 | OpenCode question hang + unscoped MR poll | ADR-064 |
+| OpenCode server is an agent-sandbox Sandbox | ADR-065 |

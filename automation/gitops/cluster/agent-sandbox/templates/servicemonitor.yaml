@@ -1,0 +1,26 @@
+{{- if and .Values.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: agent-sandbox-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: agent-sandbox-controller
+    app.kubernetes.io/name: agent-sandbox
+    app.kubernetes.io/part-of: lightwell-infra
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: agent-sandbox-controller
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+      path: /metrics
+{{- end }}

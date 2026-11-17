@@ -1,0 +1,38 @@
+{{- if .Values.enabled }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ .Values.otel.name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  mode: deployment
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+          http: {}
+    processors:
+      batch: {}
+      resource:
+        attributes:
+          - key: lightwell.cluster
+            value: lightwell
+            action: upsert
+    exporters:
+      otlp/tempo:
+        endpoint: tempo-{{ .Values.tempo.name }}:4317
+        tls:
+          insecure: true
+      logging:
+        verbosity: basic
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlp/tempo, logging]
+{{- end }}

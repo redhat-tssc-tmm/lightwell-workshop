@@ -1,0 +1,15 @@
+# Pin must match files/sandbox-with-extensions.yaml (upstream release asset).
+# Source: https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.8/sandbox-with-extensions.yaml
+enabled: true
+version: v1.0.8
+namespace: agent-sandbox-system
+
+metrics:
+  # ServiceMonitor for the controller metrics port (8080) already exposed by upstream.
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    # OpenShift user-workload monitoring looks for this label on the ServiceMonitor.
+    labels:
+      release: kube-prometheus-stack

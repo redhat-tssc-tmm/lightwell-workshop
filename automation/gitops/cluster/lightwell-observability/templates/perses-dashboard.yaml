@@ -1,0 +1,76 @@
+{{- if and .Values.enabled .Values.perses.dashboard.enabled }}
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: {{ .Values.perses.dashboard.name }}
+  namespace: {{ .Values.perses.dashboard.namespace }}
+  labels:
+    app.kubernetes.io/name: lightwell-remediation
+    app.kubernetes.io/part-of: lightwell-infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  config:
+    display:
+      name: Lightwell remediation runs
+    duration: 6h
+    panels:
+      "intro":
+        kind: Panel
+        spec:
+          display:
+            name: Lightwell remediation (skeleton)
+          plugin:
+            kind: Markdown
+            spec:
+              text: |-
+                Placeholder dashboard for the agent-sandbox remediation drive.
+
+                Planned panels (task 7.2): active runs, lanes by stage, SandboxClaim
+                Ready latency, recent failures — filter by `lightwell.guid`.
+
+                Until orchestrator metrics exist, use **Observe → Traces** with
+                TraceQL attribute `lightwell.guid` / `lightwell.run_id`.
+      "claims":
+        kind: Panel
+        spec:
+          display:
+            name: Agent-sandbox sandboxes (placeholder query)
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    # Series name depends on controller scrape; refine in task 7.2.
+                    query: count(kube_pod_info{namespace="agent-sandbox-system"}) or vector(0)
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: Overview
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 16
+              height: 6
+              content:
+                $ref: "#/spec/panels/intro"
+            - x: 16
+              "y": 0
+              width: 8
+              height: 6
+              content:
+                $ref: "#/spec/panels/claims"
+{{- end }}

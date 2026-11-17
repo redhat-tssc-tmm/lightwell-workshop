@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-11-17 (OpenCode image pin `sha-7971cad`)
+Last updated: 2026-11-17 (OpenCode runs as Sandbox/opencode)
 
 ## Where the pieces live
 
@@ -22,6 +22,19 @@ Last updated: 2026-11-17 (OpenCode image pin `sha-7971cad`)
 | AO Path 2 operator helper + docs | this repo — [`ao-trigger-helper/`](ao-trigger-helper/) (scripts + [`docs/`](ao-trigger-helper/docs/)) |
 
 ## Recently done
+
+- **OpenCode server is `Sandbox/opencode` (17 Nov).** `bootstrap-infra`
+  installs agent-sandbox v1.0.8. The tenant chart no longer renders
+  `Deployment/opencode`; Service `opencode:4096` and the UI gate stay.
+  `sync-gitlab-pat` deletes the Sandbox pod instead of rolling a
+  Deployment. Lab sync on dev cluster `fvllf` (tenant `qkjst`): controller
+  `v1.0.8` Available, `Sandbox/opencode` Ready in `sdlc-qkjst`, Service
+  `opencode:4096` selects that pod, Deployment pruned, pod delete recreated
+  Ready. Automated sync is off on `lb1815-lightwell`, `agent-sandbox`, and
+  `lightwell-tenant-qkjst` so `feat/aws-noobaa-support` does not revert the
+  local charts. Orchestrator/lane Claims are still
+  [`openspec/changes/agent-sandbox-orchestrator/`](openspec/changes/agent-sandbox-orchestrator/).
+  → [ADR-065](ADR.md#adr-065--opencode-runs-as-an-agent-sandbox-sandbox)
 
 - **ADR-064 implemented (9 Nov, `f6rc7` / `cluster-vj6w6`).** Impact
   was hanging on OpenCode `question` / stopping after a risk paragraph,

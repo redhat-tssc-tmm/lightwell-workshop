@@ -1,0 +1,43 @@
+enabled: true
+
+namespace: lightwell-observability
+
+operators:
+  # Install operators into openshift-operators (shared OperatorGroup already exists there).
+  targetNamespace: openshift-operators
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  tempo:
+    enabled: true
+    name: tempo-product
+    channel: stable
+  opentelemetry:
+    enabled: true
+    name: opentelemetry-product
+    channel: stable
+  clusterObservability:
+    enabled: true
+    name: cluster-observability-operator
+    channel: stable
+
+tempo:
+  name: lightwell
+  # memory backend is fine for demos; switch to pv for longer retention.
+  storageBackend: memory
+  storageSize: 2Gi
+
+otel:
+  name: lightwell
+  # Tenant id header for multi-tenant Tempo gateways; unused for plain TempoMonolithic OTLP.
+  tenant: lightwell
+
+uiPlugins:
+  distributedTracing: true
+  monitoringPerses: true
+
+perses:
+  dashboard:
+    enabled: true
+    name: lightwell-remediation
+    # Namespace must match where PersesDashboard lives (Observe → Dashboards selector).
+    namespace: lightwell-observability

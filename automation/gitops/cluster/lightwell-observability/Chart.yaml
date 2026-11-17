@@ -1,0 +1,8 @@
+apiVersion: v2
+name: lightwell-observability
+description: >-
+  Cluster Tempo (TempoMonolithic), OpenTelemetry Collector, COO UIPlugins
+  (DistributedTracing + Perses), and Lightwell remediation PersesDashboard skeleton.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

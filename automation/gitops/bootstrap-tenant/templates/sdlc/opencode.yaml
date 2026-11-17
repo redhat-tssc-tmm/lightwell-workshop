@@ -10,8 +10,8 @@
 {{- fail "Set sdlc.llm.apiKey or sdlc.llm.existingSecret for LiteLLM" }}
 {{- end }}
 {{- end }}
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: agents.x-k8s.io/v1beta1
+kind: Sandbox
 metadata:
   name: opencode
   namespace: {{ include "bootstrap-tenant.sdlcNamespace" . }}
@@ -20,17 +20,18 @@ metadata:
     lightwell.guid: {{ .Values.guid | quote }}
   annotations:
     argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: opencode
-  template:
+  operatingMode: Running
+  failedPodPolicy: Recreate
+  podTemplate:
     metadata:
       labels:
         app: opencode
+        lightwell.guid: {{ .Values.guid | quote }}
     spec:
       serviceAccountName: opencode
+      restartPolicy: Always
       securityContext:
         runAsNonRoot: true
       volumes:
@@ -178,7 +179,7 @@ spec:
 # → ADR-029
 #
 # Sessions live in an emptyDir under $HOME=/tmp on the opencode pod, so they
-# do not survive a pod restart. Avoid rolling the opencode Deployment mid-demo.
+# do not survive a pod restart. Avoid deleting the opencode pod mid-demo.
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
