@@ -8,7 +8,7 @@ Architectural decisions that back these items live in [ADR.md](ADR.md). **Always
 update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
-Last updated: 2026-11-17 (Red Hat build of Agent Sandbox)
+Last updated: 2026-11-18 (TPA package search in tenant provisioning)
 
 ## Where the pieces live
 
@@ -640,6 +640,16 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
    blast radius, so a demo re-run on a warm tenant can look like the
    remediation simply ignored an application. Worth a retry/backoff in
    `tpa_blast_radius.py` rather than one attempt.
+
+   On `qkjst` (18 Nov) the same 504 was the planner, not only CPU. A direct
+   `flyway-core` lookup is ~30ms; `/packages?q=` with the default join order
+   runs for minutes and the playbook's 60s client records a 504 while
+   Postgres keeps going. Fixed in the tenant chart (ADR-068):
+   `wal-tuning.conf` sets `join_collapse_limit = 1` and `work_mem = 128MB`.
+   A new tenant gets that at provision. `qkjst` already has the same two
+   parameters on `tpadb`; its ConfigMap will not follow the chart until
+   applied by hand (ADR-051). CPU stays 500m — raising it to 2 did not
+   finish the bad plan inside 60s.
 
 00000. **TPA CVE dataset silently does not ingest on a fresh tenant.**
    Both tenants on `cluster-klrql` came up with `GHSA-OSV: 285` and

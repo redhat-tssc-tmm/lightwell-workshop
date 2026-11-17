@@ -725,6 +725,19 @@ Copy and fill for each new decision:
 
 ---
 
+## ADR-068 — Keep TPA package search inside the blast-radius timeout
+
+| Field | Content |
+|-------|---------|
+| **Date** | 2026-11-18 |
+| **Title** | Provision TPA Postgres so `/packages?q=` finishes before the 60s client |
+| **Context** | Path 2 blast radius (`tpa_blast_radius.py`) calls `GET /api/v3/sbom/{id}/packages?q={artifact}` with a 60s timeout. On tenant `qkjst` that query ran for minutes. Prepare then failed closed with "No blast radius", so auto-merge never started. A direct purl lookup of the same SBOM is ~30ms. The slow plan is the default `join_collapse_limit` (8) reordering Trustify's explicit joins; `work_mem` at 2MB spills the aggregate. Raising CPU from 500m to 2 did not bring it under 60s. `SET join_collapse_limit = 1` plus `work_mem = 128MB` returned `flyway-core` in 0.7s, and `rhlw-002958` then auto-merged. The container already includes `tpa-pgsql-tuning` on every start (`openshift-custom-postgresql.conf`). |
+| **Decision** | The tenant chart sets `tpa.postgresql.tuning.workMem` to `128MB` and `joinCollapseLimit` to `1` in `wal-tuning.conf`. CPU stays 500m. |
+| **Consequences** | A newly ordered tenant gets the settings when Postgres is created. `join_collapse_limit = 1` stops the planner reordering explicit joins, so a query written in a poor order stays in that order. Existing tenants do not pick up a ConfigMap `/data` change through Argo (`ignoreDifferences`, [ADR-051](#adr-051--script-configmap-edits-do-not-reach-an-existing-tenant-accepted)); apply the ConfigMap and restart `tpa-postgresql`, or set the two parameters on `tpadb`. |
+| **Relates** | [ADR-051](#adr-051--script-configmap-edits-do-not-reach-an-existing-tenant-accepted) |
+
+---
+
 ## Mapping to HANDOFF.md
 
 | Handoff theme | ADR |
@@ -797,3 +810,4 @@ Copy and fill for each new decision:
 | OpenCode server is an agent-sandbox Sandbox | ADR-065 |
 | Red Hat build of Agent Sandbox operator, not the upstream manifest | ADR-067 |
 | Sandbox agent traces in cluster Tempo; tenant only exports | ADR-066 |
+| TPA package search stays inside the 60s blast-radius client | ADR-068 |

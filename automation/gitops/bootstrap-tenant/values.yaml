@@ -102,7 +102,12 @@ tpa:
       minWalSize: "128MB"
       walBuffers: "16MB"
       maintenanceWorkMem: "64MB"
-      workMem: "2MB"
+      # Package search (/api/v3/sbom/{id}/packages?q=) joins enough tables
+      # that the default 2MB spills and the planner reorders the joins into
+      # a multi-minute plan. The blast-radius playbook times out at 60s and
+      # reports an empty blast radius. See ADR-068.
+      workMem: "128MB"
+      joinCollapseLimit: 1
       sharedBuffers: "128MB"
       effectiveCacheSize: "512MB"
       maxConnections: 100
