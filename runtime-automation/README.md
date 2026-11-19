@@ -34,7 +34,7 @@ The same failure shows up in Ansible as a wait loop that gives up:
 ## What is *not* implemented here
 
 This lab is tab-driven (terminal, console, Nexus, Renovate, TPA, GitLab,
-Ansible Orchestrator, Snow, ArgoCD). There are no Zero Touch
+Ansible Orchestrator, Snow, Argo CD). There are no Zero Touch
 solve/validate playbooks, so `/config` returns `{}` and the Zero Touch UI
 offers no modules. This README exists so the sidecar can be healthy — not
 to claim the lab grades itself.

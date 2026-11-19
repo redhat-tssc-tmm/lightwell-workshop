@@ -42,7 +42,7 @@ The crucial thing to understand is that *CVSS scores a flaw, not your risk*. The
 
 == What is an SBOM and Why Does it Matter?
 
-A *Software Bill of Materials* is a machine-readable inventory of everything inside a build: every direct dependency, every transitive dependency, their versions, and their licences. Think of it as the ingredients list for a container image. The two common formats are *CycloneDX* and *SPDX*; this lab uses CycloneDX.
+A *Software Bill of Materials* is a machine-readable inventory of everything inside a build: every direct dependency, every transitive dependency, their versions, and their licenses. Think of it as the ingredients list for a container image. The two common formats are *CycloneDX* and *SPDX*; this lab uses CycloneDX.
 
 SBOMs matter because modern applications are mostly other people's code. A Java service with twenty declared dependencies routinely resolves to several hundred actual artifacts. When a CVE lands against one of those transitive dependencies, the question "are we affected?" is genuinely hard to answer without an inventory.
 
@@ -81,7 +81,7 @@ A CVE is published. Here is what usually happens next:
 
 . *Discovery* — a scanner flags it, or someone reads a mailing list. Days can pass.
 . *Triage* — an engineer manually works out which applications pull the component in, often by searching repositories by hand. Transitive dependencies get missed.
-. *Sourcing* — someone finds a fixed upstream version, then checks whether it is compatible, whether the licence changed, and whether it is itself trustworthy.
+. *Sourcing* — someone finds a fixed upstream version, then checks whether it is compatible, whether the license changed, and whether it is itself trustworthy.
 . *Change request* — a ticket is raised, assigned, queued behind other work, and waits for a change window.
 . *Patch and build* — a developer bumps the version, fixes whatever broke, and pushes. CI builds and signs.
 . *Deploy* — the change rolls through environments, each with its own approval gate.
@@ -112,7 +112,7 @@ flowchart TB
   RN["Renovate"]
   MR["GitLab<br/>merge request"]
   TK["Tekton<br/>build + sign"]
-  AC["ArgoCD<br/>deploy"]
+  AC["Argo CD<br/>deploy"]
   OS["OpenShift<br/>production"]
   LW --> NX --> RN --> MR --> TK --> AC --> OS
   style MR fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
@@ -135,7 +135,7 @@ flowchart TB
   AI["AI Agents<br/>risk + MRs"]
   MR["GitLab MRs<br/>auto + manual"]
   TK["Tekton<br/>build + sign"]
-  AC["ArgoCD<br/>deploy"]
+  AC["Argo CD<br/>deploy"]
   OS["OpenShift<br/>production"]
   SN["Snow<br/>updated throughout"]
   LW --> NX --> AO --> TPA --> AI --> MR --> TK --> AC --> OS

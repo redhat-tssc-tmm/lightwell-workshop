@@ -21,7 +21,7 @@ browser windows — the links are there if you prefer your own tab.
 | https://renovate-operator-renovate-operator.{openshift_cluster_ingress_domain}[Renovate^]
 | `{user}` / `{password}` (SSO)
 
-| https://openshift-gitops-server-openshift-gitops.{openshift_cluster_ingress_domain}[ArgoCD^]
+| https://openshift-gitops-server-openshift-gitops.{openshift_cluster_ingress_domain}[Argo CD^]
 | `{user}` / `{password}` — via *Log in via OpenShift*
 
 | https://tpa-{guid}.{openshift_cluster_ingress_domain}[Trusted Profile Analyzer^]

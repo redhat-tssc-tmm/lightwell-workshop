@@ -141,7 +141,7 @@ approval_checklist:
       ci_name: pert.redhat-rhads.prod
       url: https://catalog.demo.redhat.com/catalog?item=pert.redhat-rhads.prod
       relevance_score: 76
-      why_it_fits: Covers TPA, OpenShift GitOps/ArgoCD, and software supply chain
+      why_it_fits: Covers TPA, OpenShift GitOps/Argo CD, and software supply chain
         security workflows central to this scenario; platform engineers gain hands-on
         depth in TPA vulnerability management and GitOps-driven deployment patterns.
       workloads:
@@ -160,7 +160,7 @@ approval_checklist:
       ci_name: sandboxes-gpte.opp-hol.prod
       url: https://catalog.demo.redhat.com/catalog?item=sandboxes-gpte.opp-hol.prod
       relevance_score: 58
-      why_it_fits: Covers RHACM multi-cluster management, OpenShift GitOps/ArgoCD,
+      why_it_fits: Covers RHACM multi-cluster management, OpenShift GitOps/Argo CD,
         and vulnerability management workflows aligning with the fleet deployment
         and CVE remediation themes.
       workloads: []

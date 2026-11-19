@@ -50,7 +50,7 @@ Neither path is "better" — they solve different problems, and they coexist. `r
 
 Look back at what the two paths actually have in common. Once a merge lands on `main` — whether Renovate proposed it, you merged it, or the Orchestrator merged it on policy — the rest is identical:
 
-`build-push-to-main` compiles, generates a CycloneDX SBOM and uploads it to TPA, signs the image with Tekton Chains via Trusted Artifact Signer, pushes to the OCI registry, and promotes the new `imageTag` into the deployment repository. ArgoCD notices the commit and rolls the application out.
+`build-push-to-main` compiles, generates a CycloneDX SBOM and uploads it to TPA, signs the image with Tekton Chains via Trusted Artifact Signer, pushes to the OCI registry, and promotes the new `imageTag` into the deployment repository. Argo CD notices the commit and rolls the application out.
 
 That matters more than it looks. The signing, the SBOM and the deployment story do not change because you picked a different remediation strategy, which means adopting full automation later is not a re-platforming exercise. You are replacing *who decides what to change*, not how software gets built and shipped.
 
@@ -61,7 +61,7 @@ It is tempting to summarise the full automation path as "the AI decided". It did
 The AI agent wrote the change: it read the `pom.xml`, bumped the coordinate, pushed a branch and drafted the merge request. It was never asked whether the change should ship. That decision came from three places, none of them a model:
 
 * *TPA* answered which applications genuinely contain the component — from SBOM data, not from guessing or grepping.
-* *The pipeline* measured whether the change is safe: unit tests, integration tests, SBOM integrity, licence comparison, dependency compatibility. Anything it did not measure stayed `Pending` rather than turning green.
+* *The pipeline* measured whether the change is safe: unit tests, integration tests, SBOM integrity, license comparison, dependency compatibility. Anything it did not measure stayed `Pending` rather than turning green.
 * *`.lightwell/policy.json`* — a four-line file in each application's own repository, written by humans, reviewed like any other code — said whether a person must sign off.
 
 That last one is policy-as-code, and it is why `wire-transfer-svc` stopped with every check green. No heuristic weighed the evidence and concluded it was probably fine. The policy said a PCI-scoped payment system needs a human, and the platform had no mechanism to argue.
@@ -72,7 +72,7 @@ NOTE: It also fails closed. If that policy file is missing, unreadable or malfor
 
 This lab followed a single remediation through the pipeline end to end. Several production concerns are out of scope:
 
-* *Multi-stage deployment* — this lab promotes straight to one environment. Real pipelines have test, staging and production, each with its own gate and validation suite. ArgoCD supports this natively via ApplicationSets and sync policies.
+* *Multi-stage deployment* — this lab promotes straight to one environment. Real pipelines have test, staging and production, each with its own gate and validation suite. Argo CD supports this natively via ApplicationSets and sync policies.
 
 * *Custom VEX generation* — Red Hat publishes VEX documents for its products. Generating VEX for your own applications tells scanners which component matches are genuinely exploitable, which is how you stop drowning reviewers in findings that do not apply.
 

@@ -36,7 +36,7 @@ With patches approved in Module 03, the final module traces the end-to-end path 
 5. Once the pipeline completes, locate the signed image artifact in the registry and confirm that the signing attestation is present.
 6. Open the Red Hat Advanced Cluster Management console and navigate to the application topology view for one of the affected applications.
 7. Observe the current deployed image version across the managed cluster fleet.
-8. Navigate to the OpenShift GitOps (ArgoCD) console and locate the application whose image reference was updated by the Trusted Software Factory pipeline.
+8. Navigate to the OpenShift GitOps (Argo CD) console and locate the application whose image reference was updated by the Trusted Software Factory pipeline.
 9. Trigger a manual sync or observe an in-progress automatic sync, and watch GitOps reconcile the updated image reference across the target clusters.
 10. Return to RHACM and verify that the cluster fleet now reports the patched image version for the affected application.
 11. Navigate to TPA and re-run the impact scope query for the CVE addressed by this patch; verify that the affected application no longer appears in the impact list.
