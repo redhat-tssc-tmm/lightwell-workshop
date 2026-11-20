@@ -23,7 +23,7 @@ Last updated: 2026-11-19 (Module 3 procedural restructure; Antora build verified
 
 ## Recently done
 
-- **Module 3 restructured into procedural steps (18–19 Nov, uncommitted draft).**
+- **Module 3 restructured into procedural steps (18–19 Nov, committed 19 Nov).**
   Every hands-on section now uses numbered do/check steps with explicit
   "you should see" assertions; fixed the ADR-056 row-count wording (seven
   measured checks plus the risk-class row), replaced the unverifiable

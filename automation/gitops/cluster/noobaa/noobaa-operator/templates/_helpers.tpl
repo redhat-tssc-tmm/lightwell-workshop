@@ -73,7 +73,7 @@ Determine target namespace
 {{- end }}
 
 {{/*
-ArgoCD Syncwave
+Argo CD Syncwave
 */}}
 {{- define "noobaa-operator.argocd-syncwave" -}}
 {{- if .Values.argocd }}
@@ -88,7 +88,7 @@ argocd.argoproj.io/sync-wave: "{{ .Values.argocd.operator.syncwave }}"
 {{- end }}
 
 {{/*
-ArgoCD Syncwave
+Argo CD Syncwave
 */}}
 {{- define "noobaa-operatorgroup.argocd-syncwave" -}}
 {{- if .Values.argocd }}

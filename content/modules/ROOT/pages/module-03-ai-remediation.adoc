@@ -662,7 +662,7 @@ Nobody wrote a report or updated a spreadsheet. The pipeline uploaded the SBOM a
 
 . Open a child. Confirm it carries the per-application detail: the merge request link, the CVE, the verifier outcome, the pipeline run, the Argo CD application and the route the fixed code is now serving on. The parent tells an operator where things stand; the child tells them what happened.
 
-The incident is marked _Resolved_ when the app is deployed, not when it is merge or shows a green pipeline. The `SNOW finalize` step only runs in the Deploy workflow, so the ticket stays open until the remediated code is running. A build that passes but never ships does not close anything.
+The incident is marked _Resolved_ when the app is deployed, not when it is merged or shows a green pipeline. The `SNOW finalize` step only runs in the Deploy workflow, so the ticket stays open until the remediated code is running. A build that passes but never ships does not close anything.
 
 That is also why three workflows rather than one long-running job. The Start run ends when the merge requests are ready; merge and deploy arrive later as webhooks and start their own short executions. The incident is what stitches them back into a single story — which is precisely the job a ticket is supposed to do.
 
