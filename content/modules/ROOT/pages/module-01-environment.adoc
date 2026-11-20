@@ -29,7 +29,7 @@ You will visit these as needed throughout the lab.
 
 === Red Hat OpenShift
 
-The application platform underneath everything in this lab. Every component listed below — GitLab, Nexus, TPA, ArgoCD, Ansible Orchestrator, Snow, and the AI agents — runs on OpenShift. The platform provides the develop, secure, deploy, and monitor capabilities they all rely on: container builds and image registries, role-based access control and security context constraints, operator-managed infrastructure, service networking, and the web console you will use to observe pipelines, deployments, and pod health. Whether you are running a quick dependency bump or a full AI-assisted remediation, OpenShift is the platform that makes the pipeline possible.
+The application platform underneath everything in this lab. Every component listed below — GitLab, Nexus, TPA, Argo CD, Ansible Orchestrator, Snow, and the AI agents — runs on OpenShift. The platform provides the develop, secure, deploy, and monitor capabilities they all rely on: container builds and image registries, role-based access control and security context constraints, operator-managed infrastructure, service networking, and the web console you will use to observe pipelines, deployments, and pod health. Whether you are running a quick dependency bump or a full AI-assisted remediation, OpenShift is the platform that makes the pipeline possible.
 
 === Ansible Orchestrator
 
@@ -51,13 +51,13 @@ Tekton compiles the application, generates an SBOM, and pushes the container ima
 
 * *Both paths:* Tekton builds and TAS signs the patched application after you (or the AI) approve a merge request.
 
-=== ArgoCD
+=== Argo CD
 
 Detects new container images and deploys them to the target environment.
 
-NOTE: In this lab, ArgoCD deploys straight to production. Real-world customers typically configure multiple stages — test, staging, production — each with its own sync policy and approval gate.
+NOTE: In this lab, Argo CD deploys straight to production. Real-world customers typically configure multiple stages — test, staging, production — each with its own sync policy and approval gate.
 
-* *Both paths:* ArgoCD deploys the newly built image to production after the pipeline completes.
+* *Both paths:* Argo CD deploys the newly built image to production after the pipeline completes.
 
 === GitLab
 

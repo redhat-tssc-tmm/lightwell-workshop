@@ -74,5 +74,5 @@ spec:
                 '-n', 'openshift-gitops', '--type', 'merge', '-p', patch])
               " <<< "${NEW_POLICY}"
 
-              echo "Added ArgoCD RBAC role ${ROLE} for ${USERNAME}"
+              echo "Added Argo CD RBAC role ${ROLE} for ${USERNAME}"
 {{- end }}

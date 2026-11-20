@@ -288,7 +288,7 @@ That is the **entire** published `Lightwell Remediation` canvas. No ServiceNow n
 | MR Verifier Job done | Partial | AO sees AAP JT status only |
 | Tekton / PaC build | **No** | GitLab→PaC outside AO |
 | Chains / sign / Nexus OCI push | **No** | Outside AO |
-| ArgoCD deploy | **No** | Outside AO |
+| Argo CD deploy | **No** | Outside AO |
 | TPA SBOM upload after build | **No** | Outside AO |
 
 ### Structural gaps (Ansible/AO backing)

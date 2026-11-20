@@ -193,7 +193,7 @@ check_url() {  # check_url <label> <url> <acceptable codes regex>
 check_url "Nexus"         "https://nexus-lightwell-nexus-${GUID}.${DOMAIN}"        '^(200|302|401)$'
 check_url "GitLab"        "${GL}/users/sign_in"                                    '^(200|302)$'
 check_url "Renovate UI"   "https://renovate-operator-renovate-operator.${DOMAIN}"  '^(200|302|401)$'
-check_url "ArgoCD"        "https://openshift-gitops-server-openshift-gitops.${DOMAIN}" '^(200|302|307)$'
+check_url "Argo CD"        "https://openshift-gitops-server-openshift-gitops.${DOMAIN}" '^(200|302|307)$'
 check_url "TPA"           "https://tpa-${GUID}.${DOMAIN}"                           '^(200|302)$'
 check_url "ServiceNow"    "${SNOW}"                                                '^(200|302)$'
 check_url "Orchestrator"  "https://ao.${DOMAIN}"                                   '^(200|302|401)$'

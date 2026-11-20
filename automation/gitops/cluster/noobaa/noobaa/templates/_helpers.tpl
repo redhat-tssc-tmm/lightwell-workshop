@@ -62,7 +62,7 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-ArgoCD Syncwave
+Argo CD Syncwave
 */}}
 {{- define "noobaa.argocd-syncwave" -}}
 {{- if .Values.argocd }}

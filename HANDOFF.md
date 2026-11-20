@@ -9,6 +9,7 @@ update ADR.md in the same change** when you add, change, or close a Handoff item
 that implies a decision (Handoff = list; ADR = context / decision / consequences).
 
 Last updated: 2026-11-18 (TPA package search in tenant provisioning)
+Last updated: 2026-11-19 (Module 3 procedural restructure; Antora build verified, screenshots re-shot, live-tenant verification outstanding)
 
 ## Where the pieces live
 
@@ -18,7 +19,7 @@ Last updated: 2026-11-18 (TPA package search in tenant provisioning)
 | Catalog item `lb1815-lightwell-tenant` | `rhpds/agnosticv`, `rh1-2027/` — via PR |
 | OpenCode agent prompts, EDA rulebooks, AAP playbooks | `rhpds/lw-sdlc-opencode` — via PR |
 | Acme sample apps (3) | `redhat-ads-tech/{wire-transfer-svc,benefits-mgmt-app,report-generator-app}` |
-| Acme deployment manifests | `redhat-ads-tech/acme-deployment` — Helm chart for ArgoCD app-of-apps |
+| Acme deployment manifests | `redhat-ads-tech/acme-deployment` — Helm chart for Argo CD app-of-apps |
 | AO Path 2 operator helper + docs | this repo — [`ao-trigger-helper/`](ao-trigger-helper/) (scripts + [`docs/`](ao-trigger-helper/docs/)) |
 
 ## Recently done
@@ -48,6 +49,22 @@ Last updated: 2026-11-18 (TPA package search in tenant provisioning)
   [`openspec/changes/agent-sandbox-orchestrator/`](openspec/changes/agent-sandbox-orchestrator/).
   → [ADR-065](ADR.md#adr-065--opencode-runs-as-an-agent-sandbox-sandbox),
   [ADR-067](ADR.md#adr-067--use-the-red-hat-build-of-agent-sandbox)
+- **Module 3 restructured into procedural steps (18–19 Nov, committed 19 Nov).**
+  Every hands-on section now uses numbered do/check steps with explicit
+  "you should see" assertions; fixed the ADR-056 row-count wording (seven
+  measured checks plus the risk-class row), replaced the unverifiable
+  deployment-route TODO with the Topology *Route* link, labelled the TPA
+  numbers as reference-tenant values, simplified section titles and prose to
+  plain developer language, and made the framing OpenShift-first with the
+  workflow (not AO) as the default actor. The duplicate high-risk Argo CD
+  screenshot is gone; deploy evidence is now a per-application footer capture
+  on both paths, and the affected captures were re-shot and annotated
+  (`m3-pipeline-run.png`, `m3-snow-parent-incident.png`,
+  `m3-snow-child-incident.png`, plus the new `m3-mr-auto-merged-ao.png`,
+  `argocd-acme-apps-synced-app.png`, `m3-hr-merge-app.png` — **the page links
+  to those three, so they must be committed with it**). Antora build verified
+  locally (0 errors). **Still to do:** live-tenant verification.
+  → [ADR-065](ADR.md#adr-065--module-3-instructions-must-be-procedural-not-prose-as-proof)
 
 - **ADR-064 implemented (9 Nov, `f6rc7` / `cluster-vj6w6`).** Impact
   was hanging on OpenCode `question` / stopping after a risk paragraph,
@@ -156,7 +173,7 @@ Last updated: 2026-11-18 (TPA package search in tenant provisioning)
   → `wire-transfer-svc-build`, `benefits-mgmt-app-build`,
   `report-generator-app-build`. Easier to identify in OpenShift console.
 - **AgnosticV PRs (20 Oct):**
-  - #28658 — Showroom tabs: Renovate, ServiceNow, ArgoCD + reorder
+  - #28658 — Showroom tabs: Renovate, ServiceNow, Argo CD + reorder
   - #28660 — Move workshop UI language from cluster to tenant CI
   - #28661 — Bump tenant health retries to 180
 - **benefits-mgmt-app fixes (20 Oct).** SSO disabled (fixed 15s load
@@ -279,8 +296,8 @@ Last updated: 2026-11-18 (TPA package search in tenant provisioning)
   route discovery used `oc get route` in the TPA namespace, which the
   tenant user can't access. Added `|| true` and a fallback to
   `server-tpa-{guid}.{domain}` (the API-serving route).
-- **ArgoCD app-of-apps for sample apps (16 Oct).** Per-tenant AppProject
-  (`acme-{guid}`), ArgoCD Application pointing at GitLab
+- **Argo CD app-of-apps for sample apps (16 Oct).** Per-tenant AppProject
+  (`acme-{guid}`), Argo CD Application pointing at GitLab
   `acme-{guid}/acme-deployment`, role-based RBAC so tenant users see
   only their apps. Deployment repo cloned into GitLab during
   provisioning. `seed-app-tags` Job reads commit SHAs after initial
@@ -288,7 +305,7 @@ Last updated: 2026-11-18 (TPA package search in tenant provisioning)
   (not pipeline-driven) — ready for AO integration. **Superseded:**
   `promote-to-deployment-repo` merged in the app repos' PR #1, so a
   merge to main now bumps `imageTag` in `acme-deployment` from the
-  pipeline and ArgoCD deploys it. Verified end to end.
+  pipeline and Argo CD deploys it. Verified end to end.
   Upstream deployment chart: `redhat-ads-tech/acme-deployment`.
 - **Sample apps now runnable (16 Oct).** `report-generator-app` switched
   to H2 in-memory + landing page at `/`. `benefits-mgmt-app` runs on
@@ -371,7 +388,7 @@ Re-proven end to end on `8vjv7` (2026-10-09) on image `sha-aad125a`, with
 Query TPA → Impact Analyzer → MR !1 (one-line `pom.xml` bump) → Resume
 Orchestrator → MR Verifier, ~90s from trigger to MR.
 - **Renovate operator** deployed at cluster level (`bootstrap-infra`
-  `templates/renovate/` — ArgoCD child Application pointing at the upstream
+  `templates/renovate/` — Argo CD child Application pointing at the upstream
   OCI Helm chart v6.4.0, `nonroot-v2` SCC, OpenShift Route for the web UI,
   CRD install via template mode). Per-tenant SA + SCC + `renovate-token`
   secret deployed by `bootstrap-tenant`. Student creates the RenovateJob CR
@@ -386,14 +403,14 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   (comments API + UI). Override with `snow.image`. `SNOW_URL` /
   `SNOW_SVC_URL` on `tenant-integration`.
   → [ADR-022](ADR.md#adr-022--snow-mock-comments-via-configmap--multi-app-ao-policy)
-- **ArgoCD admin password Job removed** from `bootstrap-infra`. The
+- **Argo CD admin password Job removed** from `bootstrap-infra`. The
   `set-admin-password` Job raced with the OpenShift GitOps operator. Use
   the operator-managed password or "Log in via OpenShift" instead.
 - **Nexus startupProbe** added to the tenant StatefulSet (10s interval,
   60 attempts = 10 min). Nexus 3.76 takes 3-5+ minutes to start and the
   liveness probe was killing it before startup completed.
 - **App-of-apps refactor** of `bootstrap-infra`. The monolithic chart (56
-  templates, single ArgoCD app) is now an app-of-apps that creates 8 child
+  templates, single Argo CD app) is now an app-of-apps that creates 8 child
   Applications, each pointing at a standalone subchart under
   `automation/gitops/cluster/`. Components sync in parallel (GitLab + AAP
   at wave 0, Quay at wave 1, AO at wave 3). No AgnosticV changes — `repo_path`
@@ -734,7 +751,7 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
 0a. **Remediation MR body — verified end to end on a freshly seeded tenant
    (`54dp7`, 18 Oct).** Seed -> Nexus event -> AO -> MR
    `[LW] 🔴 Bump h2 ... to fix CVE-2023-48795` -> pipeline fills the
-   validation table -> merge -> promote -> ArgoCD deploys. Agent side is
+   validation table -> merge -> promote -> Argo CD deploys. Agent side is
    merged (`sha-7447545`).
    → [ADR-032](ADR.md#adr-032--remediation-mr-body-as-the-review-artifact)
 
@@ -892,7 +909,7 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   TPA and the AAP gateway all return HTTP 000 until they are ready. macOS also
   caches the negative DNS from while the cluster was down — use `--resolve`,
   or fire requests from inside the cluster.
-- **TPA OIDC setup Job must not be a Sync hook.** ArgoCD processes hooks
+- **TPA OIDC setup Job must not be a Sync hook.** Argo CD processes hooks
   separately from regular resources. If the OIDC Job is a hook, the RBAC
   (Roles/RoleBindings) in the same sync never gets applied before the hook
   runs, causing a permissions loop. The Job is a regular resource at
@@ -900,7 +917,7 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
 - **TPA server needs 8Gi memory.** The per-tenant LimitRange defaults to
   8Gi per container. Lower limits cause OOMKill.
 - **Migrating from shared to per-tenant TPA** leaves orphaned resources
-  (old seed ConfigMaps, keycloak RBAC) that ArgoCD reports as `PruneSkipped`.
+  (old seed ConfigMaps, keycloak RBAC) that Argo CD reports as `PruneSkipped`.
   Delete them manually or provision fresh tenants.
 - **Watch for fail-open.** Four separate bugs here had the same shape: the
   component reported success and left the tenant non-functional. Prefer a loud
@@ -908,7 +925,7 @@ Orchestrator → MR Verifier, ~90s from trigger to MR.
   → [ADR-011](ADR.md#adr-011--prefer-fail-closed-over-fail-open)
 - Hook Jobs now use `hook-delete-policy: BeforeHookCreation` — the old
   Job is deleted before the new one is created on each sync. Absence
-  between syncs means the previous run completed (check ArgoCD sync
+  between syncs means the previous run completed (check Argo CD sync
   result for success/failure).
 - **AgnosticV `common_password` can lack digits.** `lookup('password', ...,
   chars=['ascii_letters', 'digits'])` is a uniform sample — ~2% chance of

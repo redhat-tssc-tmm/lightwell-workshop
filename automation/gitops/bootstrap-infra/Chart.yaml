@@ -1,7 +1,7 @@
 apiVersion: v2
 name: bootstrap-infra
 description: >-
-  App-of-apps for the Lightwell cluster platform. Creates child ArgoCD
+  App-of-apps for the Lightwell cluster platform. Creates child Argo CD
   Applications for each component: CNPG, Keycloak, GitLab, AAP, RHADS
   (TPA+RHTAS), AO, OpenCode image, and Renovate operator.
 type: application

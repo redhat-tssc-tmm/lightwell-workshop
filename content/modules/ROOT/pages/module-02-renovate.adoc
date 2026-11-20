@@ -137,7 +137,7 @@ Here is what the key fields do:
 ** `packageRules` — disables scanning of internal `com.acme.*` packages
 ** `dockerfile` / `github-actions` — disabled for this lab. Renovate supports https://docs.renovatebot.com/modules/manager/[over 100 package ecosystems^] including npm, pip, Go modules, Helm charts, Terraform providers, and container images. You enable or disable each manager independently — for example, `"npm": { "enabled": true }` would add JavaScript dependency scanning alongside the Java Lightwell preset. You can also configure https://docs.renovatebot.com/configuration-options/#automerge[auto-merge^] for low-risk dependency classes (e.g. test-only updates, patch-level bumps) so they land without human review.
 
-NOTE: Under the hood, Renovate manages Kubernetes `RenovateJob` and `RenovateProject` custom resources. You can inspect them with `oc get renovatejobs` and `oc get renovateprojects`. In a production environment, these resources would typically be managed by ArgoCD alongside your other GitOps-managed infrastructure.
+NOTE: Under the hood, Renovate manages Kubernetes `RenovateJob` and `RenovateProject` custom resources. You can inspect them with `oc get renovatejobs` and `oc get renovateprojects`. In a production environment, these resources would typically be managed by Argo CD alongside your other GitOps-managed infrastructure.
 
 === Viewing Your Scan Job
 
@@ -285,7 +285,7 @@ image::pipeline-run-renovate.png[Tekton pipeline building the remediated app,lin
 .. *Sign* — signs the container image using Trusted Artifact Signer
 .. *Push* — pushes the signed image to the registry
 +
-At this point, the application is remediated and the new container image is built, signed, and ready to go into production or other environments (e.g. using OpenShift GitOps / ArgoCD). We'll explore how remediated builds are deployed to production in the next module. But for now, it's enough to verify that the vulnerabilities are resolved, which we'll do next.
+At this point, the application is remediated and the new container image is built, signed, and ready to go into production or other environments (e.g. using OpenShift GitOps / Argo CD). We'll explore how remediated builds are deployed to production in the next module. But for now, it's enough to verify that the vulnerabilities are resolved, which we'll do next.
 
 == Verify
 

@@ -71,7 +71,7 @@ spec:
 
               # Re-syncs hit "group already exists" and leave a private group
               # from early tenants — public acme-deployment then fails with
-              # "public is not allowed in a private group" and ArgoCD cannot
+              # "public is not allowed in a private group" and Argo CD cannot
               # clone anonymously. Always enforce public on the group.
               curl -sk -o /dev/null -H "PRIVATE-TOKEN: ${ROOT_TOKEN}" -H "Content-Type: application/json" \
                 -X PUT "${GITLAB_HOST}/api/v4/groups/${GROUP_ID}" \
@@ -131,7 +131,7 @@ spec:
 
               seed_app() {
                 local APP_NAME="$1" SEED_REPO="$2" SEED_REF="$3" POLICY_JSON="${4:-}"
-                # ArgoCD reads acme-deployment anonymously; a private project
+                # Argo CD reads acme-deployment anonymously; a private project
                 # fails with "authentication required: HTTP Basic: Access
                 # denied" and the Application never syncs. The app repos stay
                 # private -- only the deployment chart needs to be readable.
@@ -168,7 +168,7 @@ spec:
 
                 # Create is a no-op when the project already exists (HTTP 400
                 # "already been taken" on re-sync). Always enforce visibility
-                # so a prior private acme-deployment does not leave ArgoCD
+                # so a prior private acme-deployment does not leave Argo CD
                 # stuck on anonymous clone (ComparisonError / Access denied).
                 curl -sk -o /dev/null -H "PRIVATE-TOKEN: ${ROOT_TOKEN}" -H "Content-Type: application/json" \
                   -X PUT "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}" \

@@ -20,7 +20,7 @@
   changed_when: false
   failed_when: m1_whoami.rc != 0
 
-- name: "M1 | Tenant ArgoCD Application is Synced and Healthy"
+- name: "M1 | Tenant Argo CD Application is Synced and Healthy"
   kubernetes.core.k8s_info:
     api_version: argoproj.io/v1alpha1
     kind: Application

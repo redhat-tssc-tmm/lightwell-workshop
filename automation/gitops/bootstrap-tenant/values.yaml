@@ -283,7 +283,7 @@ sdlc:
     lightwell:
       url: https://packages.redhat.com/lightwell/java/remediated/
 
-# Acme sample app deployment (ArgoCD app-of-apps → user-{guid}-app namespace)
+# Acme sample app deployment (Argo CD app-of-apps → user-{guid}-app namespace)
 apps:
   enabled: true
   imageTag: latest

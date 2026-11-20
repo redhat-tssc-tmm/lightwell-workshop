@@ -58,7 +58,7 @@
         url: "https://gitlab-gitlab.{{ domain }}/users/sign_in"
       - name: Renovate
         url: "https://renovate-operator-renovate-operator.{{ domain }}"
-      - name: ArgoCD
+      - name: Argo CD
         url: "https://openshift-gitops-server-openshift-gitops.{{ domain }}"
       - name: TPA
         url: "https://server-tpa-{{ tenant_guid }}.{{ domain }}"

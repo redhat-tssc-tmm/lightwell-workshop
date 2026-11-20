@@ -45,7 +45,7 @@ The lab is **two paths that share CI/CD and diverge on who creates the MR**:
 | **Path 1 — Quick Win** | Module 2 | Renovate polls Nexus → GitLab MR → you merge | No |
 | **Path 2 — Full Automation** | Module 3 | Nexus (or showcase webhook) → EDA → AO → TPA + OpenCode → GitLab MRs | Yes |
 
-**Shared ending for both:** signed image in Nexus OCI → deploy via ArgoCD → SBOM in TPA.
+**Shared ending for both:** signed image in Nexus OCI → deploy via Argo CD → SBOM in TPA.
 
 | Stage | Path 1 | Path 2 |
 |-------|--------|--------|
@@ -53,7 +53,7 @@ The lab is **two paths that share CI/CD and diverge on who creates the MR**:
 | Who finds apps | Renovate on one repo’s `pom.xml` | **TPA SBOM query** → classify by `.lightwell/policy.json` |
 | Who writes the fix | Renovate Bot | **OpenCode** Impact Analyzer |
 | Approval | Always you | `auto_approve` (benefits) / **`needs_approval`** (wire-transfer) |
-| Build → sign → deploy → SBOM | Shared (Tekton → OCI → ArgoCD → TPA) | Shared |
+| Build → sign → deploy → SBOM | Shared (Tekton → OCI → Argo CD → TPA) | Shared |
 | ITSM | None | **ServiceNow mock** end-to-end |
 
 **Apps:**
@@ -91,7 +91,7 @@ export GUID=cng2l
 |-----------|-----------|----------------------|
 | **Lightwell Network** (sim: Nexus hosted / showcase POST) | Nexus or EDA | **Sends:** remediated Maven GAV (`.rhlw-*`). Showcase script skips Nexus and POSTs the webhook body to EDA. |
 | **Nexus (Maven)** | Renovate; Tekton; EDA (when webhooks exist); OpenCode | **Sends to EDA:** `component CREATED` (GAV, repo). Hosted `lightwell-remediated` used for Path 1 inject. |
-| **Nexus (OCI)** | Tekton; ArgoCD; Chains | Images + attestations. |
+| **Nexus (OCI)** | Tekton; Argo CD; Chains | Images + attestations. |
 | **Renovate** | GitLab; Nexus | Path 1 only — MR as `renovate-bot`. |
 | **GitLab (`acme-{guid}`)** | Renovate; OpenCode; Student; PaC | MRs + merge → PaC push webhook. Policy file `.lightwell/policy.json` per app. |
 | **EDA** | Nexus / showcase; GitLab MR merge; Argo signals; AAP | Sensor: `*.rhlw-*` → **Start Orchestrator**; MR-**merged** → Merged(+build poll); Argo → Deploy (never MR-open → Start). |
@@ -111,7 +111,7 @@ export GUID=cng2l
 
 ```
 Lightwell → Nexus (Maven) → Renovate → GitLab MR → (you merge)
-  → Tekton (build + SBOM + sign) → Nexus OCI → ArgoCD → OpenShift
+  → Tekton (build + SBOM + sign) → Nexus OCI → Argo CD → OpenShift
   → TPA (SBOM verify)
 ```
 
