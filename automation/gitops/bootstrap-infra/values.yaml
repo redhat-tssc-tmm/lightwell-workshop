@@ -101,3 +101,27 @@ opencodeImage:
   contextDir: ""
 
 jobAnsibleImage: quay.io/agnosticd/ee-multicloud:chained-2026-08-05
+
+# Red Hat build of Agent Sandbox. AllNamespaces CSV, so the Subscription
+# lives in openshift-operators. The v0.9.0 CRD has no failedPodPolicy.
+agentSandbox:
+  enabled: true
+  name: agent-sandbox-operator
+  channel: preview-0.9
+  startingCSV: agent-sandbox-operator.v0.9.0
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  namespace: openshift-operators
+  metrics:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+      labels:
+        release: kube-prometheus-stack
+
+# Shared trace store for Sandbox agents. One Tempo + collector for the cluster.
+# Tenants do not install this; Sandbox/opencode exports OTLP at the endpoint below.
+lightwellObservability:
+  enabled: true
+  namespace: lightwell-observability

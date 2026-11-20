@@ -1,0 +1,49 @@
+{{- if .Values.enabled }}
+{{- if .Values.operators.tempo.enabled }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ .Values.operators.tempo.name }}
+  namespace: {{ .Values.operators.targetNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  channel: {{ .Values.operators.tempo.channel }}
+  name: {{ .Values.operators.tempo.name }}
+  source: {{ .Values.operators.source }}
+  sourceNamespace: {{ .Values.operators.sourceNamespace }}
+  installPlanApproval: Automatic
+---
+{{- end }}
+{{- if .Values.operators.opentelemetry.enabled }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ .Values.operators.opentelemetry.name }}
+  namespace: {{ .Values.operators.targetNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  channel: {{ .Values.operators.opentelemetry.channel }}
+  name: {{ .Values.operators.opentelemetry.name }}
+  source: {{ .Values.operators.source }}
+  sourceNamespace: {{ .Values.operators.sourceNamespace }}
+  installPlanApproval: Automatic
+---
+{{- end }}
+{{- if .Values.operators.clusterObservability.enabled }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ .Values.operators.clusterObservability.name }}
+  namespace: {{ .Values.operators.targetNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  channel: {{ .Values.operators.clusterObservability.channel }}
+  name: {{ .Values.operators.clusterObservability.name }}
+  source: {{ .Values.operators.source }}
+  sourceNamespace: {{ .Values.operators.sourceNamespace }}
+  installPlanApproval: Automatic
+{{- end }}
+{{- end }}

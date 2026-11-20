@@ -10,8 +10,8 @@
 {{- fail "Set sdlc.llm.apiKey or sdlc.llm.existingSecret for LiteLLM" }}
 {{- end }}
 {{- end }}
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: agents.x-k8s.io/v1beta1
+kind: Sandbox
 metadata:
   name: opencode
   namespace: {{ include "bootstrap-tenant.sdlcNamespace" . }}
@@ -20,17 +20,19 @@ metadata:
     lightwell.guid: {{ .Values.guid | quote }}
   annotations:
     argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: opencode
-  template:
+  # Running keeps a backing pod. The Red Hat operator v0.9.0 CRD has no
+  # failedPodPolicy; a deleted pod is still recreated while this mode is set.
+  operatingMode: Running
+  podTemplate:
     metadata:
       labels:
         app: opencode
+        lightwell.guid: {{ .Values.guid | quote }}
     spec:
       serviceAccountName: opencode
+      restartPolicy: Always
       securityContext:
         runAsNonRoot: true
       volumes:
@@ -68,6 +70,15 @@ spec:
             */}}
             - name: LIGHTWELL_GUID
               value: {{ .Values.guid | quote }}
+            {{- if and .Values.sdlc.tracing .Values.sdlc.tracing.enabled .Values.sdlc.tracing.endpoint }}
+            # OpenCode 1.19 exports when this is set (appends /v1/traces).
+            # Resource attributes land on every span. Per-prompt GAV is not
+            # known here; session.id on the spans joins back to the AAP job.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.sdlc.tracing.endpoint | quote }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ printf "lightwell.guid=%s,lightwell.component=opencode" .Values.guid | quote }}
+            {{- end }}
             - name: TENANT_NAMESPACE
               value: {{ include "bootstrap-tenant.jobNamespace" . | quote }}
             - name: SDLC_SANDBOX_NAMESPACE
@@ -178,7 +189,7 @@ spec:
 # → ADR-029
 #
 # Sessions live in an emptyDir under $HOME=/tmp on the opencode pod, so they
-# do not survive a pod restart. Avoid rolling the opencode Deployment mid-demo.
+# do not survive a pod restart. Avoid deleting the opencode pod mid-demo.
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:

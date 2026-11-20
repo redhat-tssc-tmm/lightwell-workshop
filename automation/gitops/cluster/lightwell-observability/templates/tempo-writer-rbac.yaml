@@ -1,0 +1,34 @@
+{{- if .Values.enabled }}
+# OpenShift Tempo gateway OPA allows a write only when the caller token
+# can `create` resource <tenant> named `traces` in api group tempo.grafana.com.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lightwell-tempo-traces-write
+  labels:
+    app.kubernetes.io/part-of: lightwell-infra
+rules:
+  - apiGroups:
+      - tempo.grafana.com
+    resources:
+      - {{ .Values.otel.tenant | quote }}
+    resourceNames:
+      - traces
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lightwell-tempo-traces-write
+  labels:
+    app.kubernetes.io/part-of: lightwell-infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: lightwell-tempo-traces-write
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.otel.name }}-collector
+    namespace: {{ .Values.namespace }}
+{{- end }}

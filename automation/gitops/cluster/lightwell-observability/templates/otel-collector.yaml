@@ -1,0 +1,48 @@
+{{- if .Values.enabled }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ .Values.otel.name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  mode: deployment
+  config:
+    extensions:
+      bearertokenauth:
+        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+          http: {}
+    processors:
+      batch: {}
+      resource:
+        attributes:
+          - key: lightwell.cluster
+            value: lightwell
+            action: upsert
+    exporters:
+      otlp/tempo:
+        # OpenShift multitenancy puts OTLP on the gateway (TLS, no client cert).
+        # The Tempo container's 4317 listens on localhost for the gateway only.
+        endpoint: tempo-{{ .Values.tempo.name }}-gateway.{{ .Values.namespace }}.svc:4317
+        headers:
+          X-Scope-OrgID: {{ .Values.otel.tenant | quote }}
+        auth:
+          authenticator: bearertokenauth
+        tls:
+          insecure_skip_verify: true
+      debug:
+        verbosity: basic
+    service:
+      extensions: [bearertokenauth]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlp/tempo, debug]
+{{- end }}

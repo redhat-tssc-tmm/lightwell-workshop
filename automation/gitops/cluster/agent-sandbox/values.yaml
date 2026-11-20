@@ -1,0 +1,19 @@
+# Red Hat build of Agent Sandbox. Technology Preview, AllNamespaces only,
+# so the Subscription has to live next to the global OperatorGroup.
+enabled: true
+name: agent-sandbox-operator
+channel: preview-0.9
+startingCSV: agent-sandbox-operator.v0.9.0
+source: redhat-operators
+sourceNamespace: openshift-marketplace
+namespace: openshift-operators
+
+metrics:
+  # ServiceMonitor for the controller metrics port (8080) the operator exposes.
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    # OpenShift user-workload monitoring looks for this label on the ServiceMonitor.
+    labels:
+      release: kube-prometheus-stack

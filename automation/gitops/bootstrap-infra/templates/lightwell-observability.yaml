@@ -1,0 +1,20 @@
+{{- $obs := .Values.lightwellObservability | default dict }}
+{{- if $obs.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+{{ include "app-of-apps.metadata" (dict "name" "lightwell-observability" "namespace" .Values.argocd.namespace "syncWave" "2") }}
+spec:
+  destination:
+    namespace: {{ .Values.lightwellObservability.namespace }}
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: automation/gitops/cluster/lightwell-observability
+    repoURL: {{ .Values.gitops.repoURL }}
+    targetRevision: {{ .Values.gitops.targetRevision }}
+    helm:
+      valuesObject:
+        enabled: {{ .Values.lightwellObservability.enabled }}
+        namespace: {{ .Values.lightwellObservability.namespace }}
+{{ include "app-of-apps.syncPolicy" . | indent 2 }}
+{{- end }}

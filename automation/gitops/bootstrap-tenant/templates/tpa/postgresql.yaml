@@ -34,6 +34,9 @@ data:
     wal_buffers = '{{ .Values.tpa.postgresql.tuning.walBuffers }}'
     maintenance_work_mem = '{{ .Values.tpa.postgresql.tuning.maintenanceWorkMem }}'
     work_mem = '{{ .Values.tpa.postgresql.tuning.workMem }}'
+    # 1 keeps Trustify's written join order. The default (8) reorders
+    # /packages?q= into a plan that outlives the 60s blast-radius client.
+    join_collapse_limit = {{ .Values.tpa.postgresql.tuning.joinCollapseLimit | default 1 }}
     max_connections = {{ .Values.tpa.postgresql.tuning.maxConnections | default 100 }}
 ---
 apiVersion: v1

@@ -1,0 +1,53 @@
+{{- if and .Values.enabled .Values.perses.dashboard.enabled }}
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: {{ .Values.perses.dashboard.name }}
+  namespace: {{ .Values.perses.dashboard.namespace }}
+  labels:
+    app.kubernetes.io/name: lightwell-remediation
+    app.kubernetes.io/part-of: lightwell-infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  config:
+    display:
+      name: Lightwell remediation runs
+    duration: 6h
+    panels:
+      "intro":
+        kind: Panel
+        spec:
+          display:
+            name: Lightwell remediation (skeleton)
+          plugin:
+            kind: Markdown
+            spec:
+              text: |-
+                OpenCode on each tenant Sandbox exports OTLP to the cluster collector.
+                Automation Orchestrator still owns the remediation. This board does not.
+
+                In **Observe → Traces**, filter spans with `lightwell.guid="<guid>"`.
+                `session.id` on those spans is the OpenCode session. The AAP Impact
+                job for that remediation stores the same session in its deep link.
+                `gen_ai.request.model` is the model the agent called.
+
+                OpenCode 1.19.6 keeps one trace context for the life of the Sandbox
+                process. Compare remediations by `session.id`, not by a separate trace
+                per `rhlw` suffix. A GAV attribute is not on the span.
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: Overview
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 24
+              height: 8
+              content:
+                $ref: "#/spec/panels/intro"
+{{- end }}

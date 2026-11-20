@@ -102,7 +102,12 @@ tpa:
       minWalSize: "128MB"
       walBuffers: "16MB"
       maintenanceWorkMem: "64MB"
-      workMem: "2MB"
+      # Package search (/api/v3/sbom/{id}/packages?q=) joins enough tables
+      # that the default 2MB spills and the planner reorders the joins into
+      # a multi-minute plan. The blast-radius playbook times out at 60s and
+      # reports an empty blast radius. See ADR-068.
+      workMem: "128MB"
+      joinCollapseLimit: 1
       sharedBuffers: "128MB"
       effectiveCacheSize: "512MB"
       maxConnections: 100
@@ -202,6 +207,12 @@ sdlc:
   edaWebhookRouteUrl: "" # default https://{activation}-{aap.ns}.{ingress}/
   gitlabWebhookTargetUrl: "" # default same as edaWebhookRouteUrl
   exposeUi: true # Route to the OpenCode embedded web UI (agent transcripts); basic-auth protected
+  # OTLP export from Sandbox/opencode into the cluster collector. The tenant
+  # chart does not install Tempo. OpenCode 1.19.6 starts tracing when
+  # OTEL_EXPORTER_OTLP_ENDPOINT is set and tags every span with lightwell.guid.
+  tracing:
+    enabled: true
+    endpoint: http://lightwell-collector.lightwell-observability.svc:4318
   # Must carry agent prompts that read SDLC_SANDBOX_NAMESPACE / EPHEMERAL_NS_PREFIX
   # from env; older images hardcode the shared sdlc-sandboxes namespace.
   # Empty → OpenShift integrated registry (bootstrap-infra BuildConfig → ImageStream):
